@@ -1,0 +1,4 @@
+.env
+.scoop.json
+.venv/
+__pycache__/

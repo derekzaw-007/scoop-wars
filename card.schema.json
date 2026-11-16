@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "url": { "type": "string", "description": "URL of one article that reports the story, or empty if not found" },
+    "summary": { "type": "string", "description": "One-sentence English summary of the story" }
+  },
+  "required": ["url", "summary"],
+  "additionalProperties": false
+}
