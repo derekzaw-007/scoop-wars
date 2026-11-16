@@ -60,10 +60,12 @@ The News Search API reference: https://docs.octen.ai/capabilities/news-search
 |---|---|
 | Right, and the house agent is also right | 1 |
 | Right, and the house agent missed | 4 |
-| Your article is the first report of the story | 2 more |
+| Your article is the first report of the story (stories with 3 or more articles) | 2 more |
 | Wrong | minus 2 |
 | No answer in 45 seconds | 0 |
 | Your key made no News Search call during the clue | 0, even if right |
+
+Ties go to the team with more right answers, then the one whose right answers came in fastest.
 
 A link counts as right if it's one of the articles Octen grouped into the story, or if the game master rules it reports the same event, was published in the last 24 hours and your summary matches.
 

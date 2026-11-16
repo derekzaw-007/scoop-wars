@@ -218,7 +218,7 @@ def check_local(clue: dict, url: str) -> dict:
     norm = normalize_url(url)
     return {
         "correct": norm in times,
-        "first_report": norm in times and earliest is not None and times[norm] == earliest,
+        "first_report": norm in times and len(times) >= 3 and earliest is not None and times[norm] == earliest,
         "story": (clue.get("key") or {}).get("story"),
     }
 
