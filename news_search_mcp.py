@@ -1,9 +1,8 @@
 """Octen News Search as an MCP tool for Codex.
 
 play.py starts Codex with this file registered as the `octen` MCP server, so the
-agent gets one tool: news_search. During the game every call goes through the
-Scoop Wars server, which forwards it to Octen with your own OCTEN_API_KEY and
-logs it. A card only scores if your key made a News Search call during the clue.
+agent gets one tool: news_search. Calls go through octen_client.news_search(),
+which routes them via the game server so they count for scoring.
 
 Change anything here: parameters, how results are trimmed, extra tools
 (other Octen APIs are allowed; other search tools and web browsing are not).
@@ -11,61 +10,19 @@ API reference: https://docs.octen.ai/capabilities/news-search
 """
 
 import json
-import os
-import time
+import sys
 from pathlib import Path
 
-import httpx
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # Codex starts this from a temp dir
+
 try:  # mcp 2.x
     from mcp.server.mcpserver import MCPServer
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as MCPServer
 
-KIT_DIR = Path(__file__).resolve().parent
-OCTEN_URL = "https://api.octen.ai/news-search"
-
-
-def load_env() -> dict:
-    env = {}
-    path = KIT_DIR / ".env"
-    if path.exists():
-        for line in path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                env[k.strip()] = v.strip().strip('"').strip("'")
-    env.update({k: v for k, v in os.environ.items() if k.startswith(("OCTEN_", "SCOOP_"))})
-    return env
-
-
-ENV = load_env()
-TEAM = json.loads((KIT_DIR / ".scoop.json").read_text()) if (KIT_DIR / ".scoop.json").exists() else {}
+from octen_client import news_search as octen_news_search  # noqa: E402
 
 mcp = MCPServer("octen")
-
-
-def _post(body: dict) -> dict:
-    headers = {"x-api-key": ENV.get("OCTEN_API_KEY", "")}
-    server = ENV.get("SCOOP_SERVER") or TEAM.get("server")
-    if server and TEAM.get("token"):
-        url = server.rstrip("/") + "/octen/news-search"  # logged, counts for scoring
-        headers["x-scoop-token"] = TEAM["token"]
-    else:
-        url = OCTEN_URL  # not joined yet: direct call, works for testing but won't count in the game
-    r = httpx.post(url, json=body, headers=headers, timeout=30)
-    try:
-        data = r.json()
-    except ValueError:
-        data = {"code": r.status_code, "msg": r.text[:200]}
-    _log(body.get("query", ""), r.status_code, data)
-    return data
-
-
-def _log(query: str, status: int, data: dict) -> None:
-    path = os.environ.get("SCOOP_RUN_LOG")
-    if path:
-        with open(path, "a") as f:
-            f.write(json.dumps({"t": time.time(), "query": query, "status": status, "code": data.get("code")}) + "\n")
 
 
 def _article(a: dict) -> dict:
@@ -97,7 +54,7 @@ def news_search(query: str, language: list[str] | None = None, time_range: str =
     }
     if language:
         body["language"] = language
-    data = _post(body)
+    data = octen_news_search(body)
     if data.get("code", 0) != 0:
         return json.dumps({"error": data.get("msg") or data.get("error") or "News Search failed", "code": data.get("code")})
     d = data.get("data") or {}
