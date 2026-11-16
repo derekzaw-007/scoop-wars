@@ -54,7 +54,7 @@ def load_env() -> None:
 load_env()
 CODEX = os.environ.get("CODEX_BIN") or shutil.which("codex") or "codex"
 CODEX_MODEL = os.environ.get("CODEX_MODEL", "")  # empty = Codex default
-CODEX_REASONING = os.environ.get("CODEX_REASONING", "low")  # minimal | low | medium | high
+CODEX_REASONING = os.environ.get("CODEX_REASONING", "low")  # low | medium | high (check what your model supports)
 
 
 def team() -> dict:
