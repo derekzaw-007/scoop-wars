@@ -47,7 +47,7 @@ The answer is right only if ALL of these hold:
 1. The article reports the same specific event as the answer key's story. A different event of the same kind does not count (for example yesterday's rate decision, another country's similar announcement, or an older stage of the story).
 2. The article was published in the 24 hours before the clue was released, as far as you can tell from the publish time and the URL. Treat a URL date older than that as wrong.
 3. The summary describes that event. Minor wording or language differences are fine.
-
+{language_rule}
 Articles in any language count. If the evidence is too thin to tell (for example the page could not be fetched and the URL and summary are ambiguous), answer "unsure". Do not guess "match" without evidence.
 
 Clue released at: {released}
@@ -155,10 +155,25 @@ def _iso(ts: float | None) -> str:
     return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def build_prompt(clue: str, key: dict, url: str, summary: str, released_at: float | None, page: dict) -> str:
+LANGUAGE_NAMES = {  # every language News Search supports
+    "ar": "Arabic", "de": "German", "en": "English", "es": "Spanish", "fr": "French", "hi": "Hindi", "id": "Indonesian",
+    "it": "Italian", "ja": "Japanese", "ko": "Korean", "nl": "Dutch", "pl": "Polish", "pt": "Portuguese", "ru": "Russian",
+    "th": "Thai", "tr": "Turkish", "vi": "Vietnamese", "zh": "Chinese",
+}
+
+
+def build_prompt(clue: str, key: dict, url: str, summary: str, released_at: float | None, page: dict, require_language: list[str] | None = None) -> str:
+    language_rule = ""
+    if require_language:
+        names = " or ".join(LANGUAGE_NAMES.get(code, code) for code in require_language)
+        language_rule = (
+            f"4. For this clue the article itself must be written in {names}. Coverage of the same event in any other "
+            f"language (including English) is wrong. Judge the language from the title and URL; if you can't tell, answer \"unsure\".\n"
+        )
     arts = (key or {}).get("articles") or []
     listed = "\n".join(f"- {a.get('title') or ''} | {a.get('url')} | published {a.get('time_published') or '?'}" for a in arts[:8])
     return PROMPT.format(
+        language_rule=language_rule,
         released=_iso(released_at),
         clue=clue,
         story=(key or {}).get("story") or "unknown",
@@ -172,7 +187,7 @@ def build_prompt(clue: str, key: dict, url: str, summary: str, released_at: floa
     )
 
 
-def judge(clue: str, key: dict, url: str, summary: str, released_at: float | None = None, timeout: float = 90) -> dict:
+def judge(clue: str, key: dict, url: str, summary: str, released_at: float | None = None, require_language: list[str] | None = None, timeout: float = 90) -> dict:
     """Return {"verdict": match|no_match|unsure, "reason": str, "secs": float}. Never raises."""
     started = time.time()
     if not url:
@@ -181,7 +196,7 @@ def judge(clue: str, key: dict, url: str, summary: str, released_at: float | Non
     if not page.get("published"):
         found = lookup_in_octen(url, summary)
         page = {**page, **found}  # the index's title and time beat a blocked page's
-    prompt = build_prompt(clue, key, url, summary, released_at or time.time(), page)
+    prompt = build_prompt(clue, key, url, summary, released_at or time.time(), page, require_language)
     workdir = tempfile.mkdtemp(prefix="scoop-judge-")
     schema_path = os.path.join(workdir, "schema.json")
     out_path = os.path.join(workdir, "verdict.json")

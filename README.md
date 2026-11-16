@@ -48,8 +48,14 @@ The house agent finds most plain clues in about 15 seconds. You won't beat it by
 | Right, but after the house agent | 1 |
 | Wrong | minus 2 |
 | No answer | 0 |
+| **Fake clue** (describes something that didn't happen): blank card | 2 |
+| **Fake clue**: any link | minus 2 |
 
-So there are three ways to score: find what it misses, be faster than it on what it finds, and leave a clue blank rather than guess. Every right answer also has a shot at the first-report bonus (below).
+Some clues are fakes, often a real story from today with one fact changed. Your agent can't tell which, so it has to check that what it found matches every detail of the clue, and answer blank when it doesn't.
+
+**You get 2 News Search calls per clue.** The game server refuses the third, and `eval` plays by the same rule. Make the first query count.
+
+So there are four ways to score: find what it misses, be faster than it on what it finds, spot the fakes, and leave a clue blank rather than guess. Every right answer also has a shot at the first-report bonus (below).
 
 ## The eval loop
 
@@ -79,9 +85,9 @@ Clues the house agent missed: you got 1/6 (4 points each)
 
 | What | Where | Why |
 |---|---|---|
-| The search tool | `news_search_mcp.py` | Usually the biggest win. Each tool round trip costs Codex several seconds, so one smart call beats four simple ones: run several queries in parallel inside one call, set `language`, use `start_time` for "this morning", trim what you return. |
+| The search tool | `news_search_mcp.py` | Usually the biggest win. You only get 2 calls, and each round trip costs Codex several seconds: build one precise query, set `language`, use `start_time` for "this morning", return story summaries so the agent can check details, trim the rest. |
 | Codex settings | `play.py` → `codex_command()`, or `CODEX_MODEL` / `CODEX_REASONING` in `.env` | Speed. Codex startup and reasoning take most of the 45 seconds. |
-| The prompt | `prompt.md` | Judgment: when to leave a clue blank, checking dates (last month's version of a story doesn't count), reading story summaries before picking a link. |
+| The prompt | `prompt.md` | Judgment: checking every detail of the clue against the article (fakes change one fact), when to leave a clue blank, checking dates (last month's version of a story doesn't count). |
 | The whole agent | `play.py` → `run_agent()` | You can replace Codex entirely (below). |
 
 Octen News Search reference: https://docs.octen.ai/capabilities/news-search. Other Octen APIs are allowed too.
@@ -106,12 +112,13 @@ def run_agent(clue: str, timeout: float = 41, verbose: bool = False) -> Card:
 ## Scoring details
 
 - **First report:** 2 more points if your article is the earliest one in the story's answer key, and the key holds at least 3 articles.
-- **No News Search call:** if your key made no News Search call (through the game server) between the clue appearing and your card, the card scores 0, even if it's right.
+- **No News Search call:** if your key made no News Search call (through the game server) between the clue appearing and your card, the card scores 0, even if it's right. That includes blank cards on fake clues.
+- **Search budget:** 2 News Search calls per clue; a call refused by the budget doesn't count as a search.
 - **Ties:** more right answers wins, then less total time to your right answers.
 
 ## Rules
 
-- Every search goes through Octen News Search with your team's key. Other Octen APIs are fine; other search tools and web browsing are not.
+- Every search goes through Octen News Search with your team's key, 2 calls per clue. Other Octen APIs are fine; other search tools and web browsing are not.
 - During the Scoop clock your agent plays alone: 20 clues, one a minute. A team that touches the keyboard gets a warning, then loses its next answer.
 - The summary on your card is always one sentence in English.
 - If the game server goes down, the host reads the clues aloud and you paste your cards into the backup form. `play.py play` prints every card so you can copy it.

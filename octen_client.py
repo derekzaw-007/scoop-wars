@@ -27,6 +27,9 @@ import httpx
 
 KIT_DIR = Path(__file__).resolve().parent
 OCTEN_URL = "https://api.octen.ai/news-search"
+# News Search calls allowed per clue. The game server enforces this during the Scoop
+# clock; it's applied here too so `play.py eval` plays by the same rule.
+SEARCH_BUDGET = int(os.environ.get("SCOOP_SEARCH_BUDGET", "2"))
 
 
 def _load_env() -> dict:
@@ -49,17 +52,33 @@ def _team() -> dict:
 
 _client = httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0))
 _captured: contextvars.ContextVar[list | None] = contextvars.ContextVar("octen_captured", default=None)
+_attempts: contextvars.ContextVar[list | None] = contextvars.ContextVar("octen_attempts", default=None)
 
 
 @contextlib.contextmanager
 def capture():
     """Collect the queries of every news_search() call made in this block (per thread)."""
     searches: list[str] = []
-    token = _captured.set(searches)
+    token, token2 = _captured.set(searches), _attempts.set([])
     try:
         yield searches
     finally:
         _captured.reset(token)
+        _attempts.reset(token2)
+
+
+def _calls_this_clue() -> int | None:
+    """Calls already made for the current clue, or None outside a clue run."""
+    attempts = _attempts.get()
+    if attempts is not None:
+        return len(attempts)
+    path = os.environ.get("SCOOP_RUN_LOG")  # set by play.py for each Codex run
+    if path:
+        if not os.path.exists(path):
+            return 0
+        with open(path) as f:
+            return sum(1 for line in f if line.strip() and json.loads(line).get("status") != 429)
+    return None
 
 
 def news_search(body: dict) -> dict:
@@ -67,6 +86,14 @@ def news_search(body: dict) -> dict:
 
     On failure returns {"code": <non-zero>, "msg": "..."} instead of raising.
     """
+    used = _calls_this_clue()
+    if SEARCH_BUDGET and used is not None and used >= SEARCH_BUDGET:
+        data = {"code": 429, "msg": f"Search budget used: {SEARCH_BUDGET} News Search calls per clue. Answer with what you have."}
+        _log(body.get("query", ""), 429, data, 0.0)
+        return data
+    attempts = _attempts.get()
+    if attempts is not None:
+        attempts.append(body.get("query", ""))
     env, team = _load_env(), _team()
     headers = {"x-api-key": env.get("OCTEN_API_KEY", "")}
     server = env.get("SCOOP_SERVER") or team.get("server")

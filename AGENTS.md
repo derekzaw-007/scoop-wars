@@ -14,7 +14,7 @@ This repo is an agent that finds fresh news stories from vague clues. You are he
 ## Hard constraints
 
 - 45 seconds per clue, including Codex startup. `play.py` kills the run at 41 seconds.
-- Every search must go through `octen_client.news_search()` (the game server proxy logs it). A card scores 0 if the team's key made no News Search call during the clue. Do not add other web search tools, browsing, or scraping. Other Octen APIs are allowed.
+- Every search must go through `octen_client.news_search()` (the game server proxy logs it). Budget: 2 News Search calls per clue; the third returns `{"code": 429}`. Calls are made in parallel at your own risk: both count. A card scores 0 if the team's key made no News Search call during the clue. Do not add other web search tools, browsing, or scraping. Other Octen APIs are allowed.
 - The card summary must be one English sentence, whatever language the article is in.
 - Keep `card.schema.json` and the `/api/cards` submission format unchanged.
 
@@ -24,7 +24,7 @@ This repo is an agent that finds fresh news stories from vague clues. You are he
 
 ## Scoring
 
-Right on a clue the house agent missed: 4. Right and faster than the house agent: 2, slower: 1. Wrong: -2. Blank: 0. So speed matters, and answering blank beats a likely-wrong guess.
+Right on a clue the house agent missed: 4. Right and faster than the house agent: 2, slower: 1. Wrong: -2. Blank: 0. Some clues are fakes (often a real story with one fact changed): blank scores +2, any link -2. So speed matters, every detail of the clue must be checked against the article, and answering blank beats a likely-wrong guess.
 
 ## Testing
 

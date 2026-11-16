@@ -101,7 +101,8 @@ class Card:
     url: str = ""
     summary: str = ""
     seconds: float = 0
-    searches: list[str] = field(default_factory=list)
+    searches: list[str] = field(default_factory=list)  # successful News Search calls
+    refused: int = 0  # calls refused by the search budget
     error: str = ""
 
 
@@ -167,7 +168,9 @@ def run_agent(clue: str, timeout: float = 40, verbose: bool = False) -> Card:
     card.seconds = time.time() - started
     if os.path.exists(run_log):
         with open(run_log) as f:
-            card.searches = [json.loads(line)["query"] for line in f if line.strip()]
+            calls = [json.loads(line) for line in f if line.strip()]
+        card.searches = [c["query"] for c in calls if c.get("status") == 200 and not c.get("code")]
+        card.refused = sum(c.get("status") == 429 for c in calls)
     if os.path.exists(out_file):
         try:
             data = json.loads(Path(out_file).read_text())
@@ -217,9 +220,12 @@ def normalize_url(url: str) -> str:
     return host + path + ("?" + urlencode(q) if q else "")
 
 
-def key_check(key: dict, url: str) -> tuple[bool, bool]:
-    """(in the answer key, first report). First report needs 3+ articles in the key."""
-    arts = (key or {}).get("articles") or []
+def key_check(key: dict, url: str, langs: list[str] | None = None) -> tuple[bool, bool]:
+    """(in the answer key, first report). First report needs 3+ articles in the key.
+
+    With langs (clues that require an article in a given language), key articles in other languages don't count.
+    """
+    arts = [a for a in (key or {}).get("articles") or [] if not (langs and a.get("language") and a["language"] not in langs)]
     times = {normalize_url(a["url"]): a.get("time_published") or "" for a in arts}
     earliest = min((t for t in times.values() if t), default=None)
     norm = normalize_url(url)
@@ -227,9 +233,13 @@ def key_check(key: dict, url: str) -> tuple[bool, bool]:
     return in_key, in_key and len(times) >= 3 and earliest is not None and times[norm] == earliest
 
 
-def game_points(verdict: str, first: bool, secs: float, searched: bool, house: dict | None) -> int | None:
+def game_points(verdict: str, first: bool, secs: float, searched: bool, house: dict | None, fake: bool = False) -> int | None:
     """Points this card would score in the Scoop clock. None when unknown (judge unsure)."""
-    if verdict == "blank" or not searched:
+    if not searched:
+        return 0
+    if fake:
+        return 2 if verdict == "right" else -2
+    if verdict == "blank":
         return 0
     if verdict == "wrong":
         return -2
@@ -327,18 +337,22 @@ def load_practice(args) -> list[dict]:
 
 def judge_card(clue: dict, card: Card) -> dict:
     """Judge one card the way the game does: answer key first, then the judge."""
-    searched = bool(card.searches)
+    if clue.get("fake"):
+        if card.url:
+            return {"verdict": "wrong", "first": False, "reason": "Fake clue: this event didn't happen, so any link is wrong."}
+        return {"verdict": "right", "first": False, "reason": "Fake clue, answered blank."}
     if not card.url:
         return {"verdict": "blank", "first": False, "reason": card.error or "no answer"}
-    in_key, first = key_check(clue.get("key"), card.url)
+    langs = clue.get("source_language")
+    in_key, first = key_check(clue.get("key"), card.url, langs)
     if in_key:
         return {"verdict": "right", "first": first, "reason": "in the answer key"}
     sys.path.insert(0, str(KIT_DIR))
     import judge
 
-    r = judge.judge(clue["text"], clue.get("key") or {}, card.url, card.summary)
+    r = judge.judge(clue["text"], clue.get("key") or {}, card.url, card.summary, require_language=langs)
     verdict = {"match": "right", "no_match": "wrong"}.get(r["verdict"], "unsure")
-    return {"verdict": verdict, "first": False, "reason": r["reason"], "searched": searched}
+    return {"verdict": verdict, "first": False, "reason": r["reason"]}
 
 
 def cmd_eval(args) -> None:
@@ -354,11 +368,12 @@ def cmd_eval(args) -> None:
     def one(c: dict) -> dict:
         card = run_agent(c["text"], timeout=args.timeout, verbose=args.verbose)
         j = judge_card(c, card)
-        pts = game_points(j["verdict"], j["first"], card.seconds, bool(card.searches), c.get("house"))
+        pts = game_points(j["verdict"], j["first"], card.seconds, bool(card.searches), c.get("house"), bool(c.get("fake")))
         return {
             "id": c["id"], "clue": c["text"], "verdict": j["verdict"], "first": j["first"], "points": pts,
             "secs": round(card.seconds, 1), "searches": card.searches, "url": card.url, "summary": card.summary,
             "reason": j["reason"], "error": card.error, "house": c.get("house"), "story": (c.get("key") or {}).get("story"),
+            "refused": card.refused, "fake": bool(c.get("fake")),
         }
 
     with ThreadPoolExecutor(max(1, args.parallel)) as ex:
@@ -390,7 +405,8 @@ def print_eval(rows: list[dict], verbose: bool = False) -> None:
         house = "?" if h is None else (f"{h['secs']:.0f}s" if h.get("right") else "missed")
         pts = "?" if r["points"] is None else f"{r['points']:+d}"
         res = r["verdict"] + ("*" if r["first"] else "")
-        print(f"{r['id']:<6} {res:<8} {pts:>4} {r['secs']:>5.1f}s {len(r['searches']):>4}  {house:<7} {r['clue'][:60]}")
+        srch = f"{len(r['searches'])}" + ("+" if r.get("refused") else "")
+        print(f"{r['id']:<6} {res:<8} {pts:>4} {r['secs']:>5.1f}s {srch:>4}  {house:<7} {r['clue'][:60]}")
         if verbose or r["verdict"] in ("wrong", "unsure"):
             print(f"{'':<6} {r['reason'][:120]}")
     n = len(rows)
@@ -401,7 +417,8 @@ def print_eval(rows: list[dict], verbose: bool = False) -> None:
     beat = sum(r["verdict"] == "right" for r in missed)
     secs = sorted(r["secs"] for r in rows)
     timeouts = sum("timed out" in (r["error"] or "") for r in rows)
-    nosearch = sum(not r["searches"] and r["url"] for r in rows)
+    nosearch = sum(not r["searches"] and (r["url"] or r.get("fake")) for r in rows)
+    refused = sum(1 for r in rows if r.get("refused"))
     print(f"\nRight {right}/{n}   Estimated game points {pts:+d}   Median {secs[n // 2]:.0f}s, slowest {secs[-1]:.0f}s")
     if known:
         print(f"Clues the house agent missed: you got {beat}/{len(missed)} (4 points each)")
@@ -409,7 +426,9 @@ def print_eval(rows: list[dict], verbose: bool = False) -> None:
         print(f"Timed out: {timeouts} (the game stops your agent at {GAME_TIMEOUT}s)")
     if nosearch:
         print(f"Answered without a News Search call: {nosearch} (scores 0 in the game)")
-    print("* first report: +2")
+    if refused:
+        print(f"Hit the search budget ({os.environ.get('SCOOP_SEARCH_BUDGET', '2')} per clue): {refused} clue(s)")
+    print("* first report: +2   srch+ = hit the search budget")
 
 
 def compare_runs(before: list[dict], after: list[dict], name: str) -> None:
@@ -440,7 +459,7 @@ def record_house(path: str | None, rows: list[dict]) -> None:
             cid = c.get("id") or f"g{c.get('n', i)}"
             r = by_id.get(cid)
             if r and r["verdict"] in ("right", "wrong", "blank"):
-                c["house"] = {"right": r["verdict"] == "right", "secs": r["secs"]}
+                c["house"] = {"right": r["verdict"] == "right" and bool(r["searches"]), "secs": r["secs"]}
                 n += 1
     Path(path).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     print(f"Recorded house results for {n} clues in {path}. Reload clues in the console.")
