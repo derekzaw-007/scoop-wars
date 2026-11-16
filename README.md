@@ -54,7 +54,7 @@ The house agent finds most plain clues in about 15 seconds. You won't beat it by
 
 Some clues are fakes, often a real story from today with one fact changed. Your agent can't tell which, so it has to check that what it found matches every detail of the clue, and answer blank when it doesn't.
 
-**You get 2 News Search calls per clue.** The game server refuses the third, and `eval` plays by the same rule. Make the first query count.
+**You get 2 search calls per clue**, News Search and Octen's other search APIs combined. The game server refuses the third, and `eval` plays by the same rule. Make the first query count.
 
 So there are four ways to score: find what it misses, be faster than it on what it finds, spot the fakes, and leave a clue blank rather than guess. Every right answer also has a shot at the first-report bonus (below).
 
@@ -101,11 +101,11 @@ Clues the house agent missed: you got 1/6 (4 points each)
 | The prompt | `prompt.md` | Judgment: checking every detail of the clue against the article (fakes change one fact), when to leave a clue blank, checking dates (last month's version of a story doesn't count). |
 | The whole agent | `play.py` → `run_agent()` | You can replace Codex entirely (below). |
 
-Octen News Search reference: https://docs.octen.ai/capabilities/news-search. Other Octen APIs are allowed too.
+Octen News Search reference: https://docs.octen.ai/capabilities/news-search. Web Search and the other single-query Octen search APIs (Pulse, Image, Video, Business, Place) work too, through `octen_client.search(api, body)`, but they share the same 2 calls per clue, and only a News Search call makes a card count. Extract and Embedding don't use the budget. Broad Search, Answer, Search Agent, Deep Research and Auto Search are off limits (they run many searches per call), and so are other search tools and web browsing.
 
 ### Replacing Codex
 
-`run_agent(clue, timeout)` just has to return a `Card` within the timeout. Any model or framework is fine, as long as every search goes through `octen_client.news_search()`. That's what routes your calls through the game server so they count:
+`run_agent(clue, timeout)` just has to return a `Card` within the timeout. Any model or framework is fine, as long as every search goes through `octen_client` (`news_search()`, or `search()` for the other Octen search APIs). That's what routes your calls through the game server so they count:
 
 ```python
 import octen_client
@@ -124,12 +124,12 @@ def run_agent(clue: str, timeout: float = 41, verbose: bool = False) -> Card:
 
 - **First report:** 2 more points if your article is the earliest one in the story's answer key, and the key holds at least 3 articles.
 - **No News Search call:** if your key made no News Search call (through the game server) between the clue appearing and your card, the card scores 0, even if it's right. That includes blank cards on fake clues.
-- **Search budget:** 2 News Search calls per clue; a call refused by the budget doesn't count as a search.
+- **Search budget:** 2 search calls per clue, all Octen search APIs combined; a call refused by the budget doesn't count as a search.
 - **Ties:** more right answers wins, then less total time to your right answers.
 
 ## Rules
 
-- Every search goes through Octen News Search with your team's key, 2 calls per clue. Other Octen APIs are fine; other search tools and web browsing are not.
+- Search only with Octen, using your team's key: 2 search calls per clue, News Search and Octen's other search APIs combined. Broad Search, Answer, Search Agent, Deep Research and Auto Search are off limits (they run many searches per call), and so are other search tools and web browsing. Extract and Embedding are fine.
 - During the Scoop clock your agent plays alone: 20 clues, one a minute. A team that touches the keyboard gets a warning, then loses its next answer.
 - The summary on your card is always one sentence in English.
 - If the game server goes down, the host reads the clues aloud and you paste your cards into the backup form. `play.py play` prints every card so you can copy it.

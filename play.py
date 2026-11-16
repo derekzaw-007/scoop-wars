@@ -10,7 +10,8 @@
 
 The agent is Codex (`codex exec`) with one tool, Octen News Search (news_search_mcp.py),
 and the instructions in prompt.md. Change any of it, or replace run_agent() with an
-agent of your own: every search must still go through octen_client.news_search().
+agent of your own: every search must still go through octen_client (news_search(),
+or search() for the other Octen search APIs; 2 calls per clue, all APIs combined).
 """
 
 import argparse
@@ -30,6 +31,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit
+
+import octen_client
 
 KIT_DIR = Path(__file__).resolve().parent
 TEAM_FILE = KIT_DIR / ".scoop.json"
@@ -102,7 +105,7 @@ class Card:
     url: str = ""
     summary: str = ""
     seconds: float = 0
-    searches: list[str] = field(default_factory=list)  # successful News Search calls
+    searches: list[str] = field(default_factory=list)  # successful search calls (octen_client.label)
     refused: int = 0  # calls refused by the search budget
     search_times: list[dict] = field(default_factory=list)  # [{"t": secs since start, "ok": bool}]
     error: str = ""
@@ -171,7 +174,7 @@ def run_agent(clue: str, timeout: float = 40, verbose: bool = False) -> Card:
     if os.path.exists(run_log):
         with open(run_log) as f:
             calls = [json.loads(line) for line in f if line.strip()]
-        card.searches = [c["query"] for c in calls if c.get("status") == 200 and not c.get("code")]
+        card.searches = [octen_client.label(c.get("api", "news-search"), c["query"]) for c in calls if c.get("status") == 200 and not c.get("code")]
         card.search_times = [{"t": round(c["t"] - started, 1), "ok": c.get("status") == 200 and not c.get("code"), "q": c["query"][:80]} for c in calls]
         card.refused = sum(c.get("status") == 429 for c in calls)
     if os.path.exists(out_file):
@@ -234,6 +237,11 @@ def key_check(key: dict, url: str, langs: list[str] | None = None) -> tuple[bool
     norm = normalize_url(url)
     in_key = norm in times
     return in_key, in_key and len(times) >= 3 and earliest is not None and times[norm] == earliest
+
+
+def news_searched(searches: list[str]) -> bool:
+    """A card scores only if at least one of its searches was a News Search call."""
+    return any(octen_client.is_news(q) for q in searches)
 
 
 def game_points(verdict: str, first: bool, secs: float, searched: bool, house: dict | None, fake: bool = False) -> int | None:
@@ -374,7 +382,7 @@ def cmd_eval(args) -> None:
         card = run_agent(c["text"], timeout=args.timeout, verbose=args.verbose)
         progress.update(c["id"], status="judging", secs=round(card.seconds, 1), url=card.url, search_times=card.search_times)
         j = judge_card(c, card)
-        pts = game_points(j["verdict"], j["first"], card.seconds, bool(card.searches), c.get("house"), bool(c.get("fake")))
+        pts = game_points(j["verdict"], j["first"], card.seconds, news_searched(card.searches), c.get("house"), bool(c.get("fake")))
         return {
             "id": c["id"], "clue": c["text"], "verdict": j["verdict"], "first": j["first"], "points": pts,
             "secs": round(card.seconds, 1), "searches": card.searches, "url": card.url, "summary": card.summary,
@@ -472,7 +480,7 @@ def print_eval(rows: list[dict], verbose: bool = False) -> None:
     beat = sum(r["verdict"] == "right" for r in missed)
     secs = sorted(r["secs"] for r in rows)
     timeouts = sum("timed out" in (r["error"] or "") for r in rows)
-    nosearch = sum(not r["searches"] and (r["url"] or r.get("fake")) for r in rows)
+    nosearch = sum(not news_searched(r["searches"]) and (r["url"] or r.get("fake")) for r in rows)
     refused = sum(1 for r in rows if r.get("refused"))
     print(f"\nRight {right}/{n}   Estimated game points {pts:+d}   Median {secs[n // 2]:.0f}s, slowest {secs[-1]:.0f}s")
     if known:
@@ -514,7 +522,7 @@ def record_house(path: str | None, rows: list[dict]) -> None:
             cid = c.get("id") or f"g{c.get('n', i)}"
             r = by_id.get(cid)
             if r and r["verdict"] in ("right", "wrong", "blank"):
-                c["house"] = {"right": r["verdict"] == "right" and bool(r["searches"]), "secs": r["secs"]}
+                c["house"] = {"right": r["verdict"] == "right" and news_searched(r["searches"]), "secs": r["secs"]}
                 n += 1
     Path(path).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     print(f"Recorded house results for {n} clues in {path}. Reload clues in the console.")

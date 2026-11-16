@@ -1,9 +1,10 @@
-"""Octen News Search client shared by the MCP tool and any agent you write yourself.
+"""Octen search client shared by the MCP tool and any agent you write yourself.
 
-Use news_search() for every search. It sends the call through the Scoop Wars game
-server when you've joined (that's how your call gets counted: a card scores 0 if
-your key made no News Search call during the clue) and logs it so `play.py eval`
-can count your searches.
+Use news_search() for every News Search, and search(api, body) for the other Octen
+search APIs (SEARCH_APIS). Both send the call through the Scoop Wars game server when
+you've joined, and log it so `play.py eval` can count your searches. A card scores 0
+if your key made no News Search call during the clue. All search calls share one
+budget: SEARCH_BUDGET per clue, whichever API they use.
 
 If you replace Codex with your own agent, call this module and record the searches
 so `play.py eval` can see them:
@@ -12,6 +13,8 @@ so `play.py eval` can see them:
     with octen_client.capture() as searches:
         data = octen_client.news_search({"query": "...", "count": 10, "time_range": "day"})
     # searches == ["..."]
+
+    data = octen_client.search("search", {"query": "...", "count": 5})  # Web Search, same budget
 
 API reference: https://docs.octen.ai/capabilities/news-search
 """
@@ -26,10 +29,21 @@ from pathlib import Path
 import httpx
 
 KIT_DIR = Path(__file__).resolve().parent
-OCTEN_URL = "https://api.octen.ai/news-search"
-# News Search calls allowed per clue. The game server enforces this during the Scoop
-# clock; it's applied here too so `play.py eval` plays by the same rule.
+OCTEN_URL = "https://api.octen.ai"
+# Search calls allowed per clue, all search APIs combined. The game server enforces
+# this during the Scoop clock; it's applied here too so `play.py eval` plays by the same rule.
 SEARCH_BUDGET = int(os.environ.get("SCOOP_SEARCH_BUDGET", "2"))
+# The Octen search APIs allowed in the game (endpoint -> name). Broad Search, Answer,
+# Search Agent, Deep Research and Auto Search run many searches per call: not allowed.
+SEARCH_APIS = {
+    "news-search": "News Search",
+    "search": "Web Search",
+    "pulse-search": "Pulse Search",
+    "image-search": "Image Search",
+    "video-search": "Video Search",
+    "business-search": "Business Search",
+    "place-search": "Place Search",
+}
 
 
 def _load_env() -> dict:
@@ -57,7 +71,10 @@ _attempts: contextvars.ContextVar[list | None] = contextvars.ContextVar("octen_a
 
 @contextlib.contextmanager
 def capture():
-    """Collect the queries of every news_search() call made in this block (per thread)."""
+    """Collect the queries of every successful search call made in this block (per thread).
+
+    Calls to APIs other than News Search are recorded as "<API name>: <query>".
+    """
     searches: list[str] = []
     token, token2 = _captured.set(searches), _attempts.set([])
     try:
@@ -65,6 +82,16 @@ def capture():
     finally:
         _captured.reset(token)
         _attempts.reset(token2)
+
+
+def label(api: str, query: str) -> str:
+    """How a search is recorded in Card.searches: News Search queries as-is, others prefixed."""
+    return query if api == "news-search" else f"{SEARCH_APIS.get(api, api)}: {query}"
+
+
+def is_news(entry: str) -> bool:
+    """True if a Card.searches entry is a News Search call (the one a card needs to score)."""
+    return not any(entry.startswith(f"{name}: ") for api, name in SEARCH_APIS.items() if api != "news-search")
 
 
 def _calls_this_clue() -> int | None:
@@ -86,10 +113,20 @@ def news_search(body: dict) -> dict:
 
     On failure returns {"code": <non-zero>, "msg": "..."} instead of raising.
     """
+    return search("news-search", body)
+
+
+def search(api: str, body: dict) -> dict:
+    """POST a request body to one of the Octen search APIs in SEARCH_APIS, e.g. "search"
+    for Web Search. Returns Octen's JSON response, or {"code": <non-zero>, "msg": "..."}.
+    Every call counts against the same per-clue budget as News Search.
+    """
+    if api not in SEARCH_APIS:
+        return {"code": 400, "msg": f"{api} is not allowed in Scoop Wars. Allowed: {', '.join(SEARCH_APIS)}"}
     used = _calls_this_clue()
     if SEARCH_BUDGET and used is not None and used >= SEARCH_BUDGET:
-        data = {"code": 429, "msg": f"Search budget used: {SEARCH_BUDGET} News Search calls per clue. Answer with what you have."}
-        _log(body.get("query", ""), 429, data, 0.0)
+        data = {"code": 429, "msg": f"Search budget used: {SEARCH_BUDGET} search calls per clue. Answer with what you have."}
+        _log(api, body.get("query", ""), 429, data, 0.0)
         return data
     attempts = _attempts.get()
     if attempts is not None:
@@ -98,10 +135,10 @@ def news_search(body: dict) -> dict:
     headers = {"x-api-key": env.get("OCTEN_API_KEY", "")}
     server = env.get("SCOOP_SERVER") or team.get("server")
     if server and team.get("token"):
-        url = server.rstrip("/") + "/octen/news-search"  # logged by the game server: counts for scoring
+        url = f"{server.rstrip('/')}/octen/{api}"  # logged by the game server: counts for scoring
         headers["x-scoop-token"] = team["token"]
     else:
-        url = OCTEN_URL  # not joined: works for testing, but won't count in the game
+        url = f"{OCTEN_URL}/{api}"  # not joined: works for testing, but won't count in the game
     started = time.time()
     try:
         r = _client.post(url, json=body, headers=headers)
@@ -114,15 +151,15 @@ def news_search(body: dict) -> dict:
         status = r.status_code
     except httpx.HTTPError as e:
         data, status = {"code": 599, "msg": f"network error: {e}"}, 599
-    _log(body.get("query", ""), status, data, time.time() - started)
+    _log(api, body.get("query", ""), status, data, time.time() - started)
     return data
 
 
-def _log(query: str, status: int, data: dict, secs: float) -> None:
+def _log(api: str, query: str, status: int, data: dict, secs: float) -> None:
     captured = _captured.get()
     if captured is not None and status == 200 and data.get("code", 0) == 0:
-        captured.append(query)
+        captured.append(label(api, query))
     path = os.environ.get("SCOOP_RUN_LOG")
     if path:
         with open(path, "a") as f:
-            f.write(json.dumps({"t": time.time(), "query": query, "status": status, "code": data.get("code"), "secs": round(secs, 2)}) + "\n")
+            f.write(json.dumps({"t": time.time(), "api": api, "query": query, "status": status, "code": data.get("code"), "secs": round(secs, 2)}) + "\n")

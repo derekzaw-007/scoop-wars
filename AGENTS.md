@@ -6,7 +6,7 @@ This repo is an agent that finds fresh news stories from vague clues. You are he
 
 - `play.py`: CLI. `run_agent(clue, timeout) -> Card` builds the `codex exec` command (`codex_command()`), passes `prompt.md` plus the clue on stdin, and reads the final card from `--output-last-message`. `ask`, `eval` and `play` all go through `run_agent()`. It may be replaced by any agent (any model, no Codex) that returns a `Card` in time.
 - `prompt.md`: the agent's instructions.
-- `octen_client.py`: `news_search(body) -> dict`, the only allowed way to search. It routes calls through `$SCOOP_SERVER/octen/news-search` with the team token, which forwards to `https://api.octen.ai/news-search` with the team's `OCTEN_API_KEY` and logs the call. `capture()` collects the queries made in a block, for `Card.searches`.
+- `octen_client.py`: `news_search(body) -> dict` and `search(api, body) -> dict` (the other allowed Octen search APIs, listed in `SEARCH_APIS`, e.g. `"search"` for Web Search), the only allowed ways to search. They route calls through `$SCOOP_SERVER/octen/<api>` with the team token, which forwards to `https://api.octen.ai/<api>` with the team's `OCTEN_API_KEY` and logs the call. `capture()` collects the queries made in a block, for `Card.searches` (non-News Search calls are prefixed with the API name).
 - `news_search_mcp.py`: MCP server (stdio) exposing the `news_search` tool to Codex, built on `octen_client`.
 - `judge.py`: the game's judge for links not in the answer key. `eval` uses it. Don't change it; it won't change how the game server judges.
 - `card.schema.json`: the final answer shape, `{"url": str, "summary": str}`, enforced with `--output-schema`.
@@ -14,7 +14,7 @@ This repo is an agent that finds fresh news stories from vague clues. You are he
 ## Hard constraints
 
 - 45 seconds per clue, including Codex startup. `play.py` kills the run at 41 seconds.
-- Every search must go through `octen_client.news_search()` (the game server proxy logs it). Budget: 2 News Search calls per clue; the third returns `{"code": 429}`. Calls are made in parallel at your own risk: both count. A card scores 0 if the team's key made no News Search call during the clue. Do not add other web search tools, browsing, or scraping. Other Octen APIs are allowed.
+- Every search must go through `octen_client` (the game server proxy logs it). Budget: 2 search calls per clue, all Octen search APIs combined; the third returns `{"code": 429}`. Calls are made in parallel at your own risk: both count. A card scores 0 if the team's key made no News Search call during the clue. Do not use Broad Search, Answer, Search Agent, Deep Research or Auto Search (they run many searches per call), and do not add other web search tools, browsing, or scraping. Octen Extract and Embedding are allowed and don't use the budget.
 - The card summary must be one English sentence, whatever language the article is in.
 - Keep `card.schema.json` and the `/api/cards` submission format unchanged.
 

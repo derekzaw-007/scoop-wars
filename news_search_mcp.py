@@ -5,7 +5,8 @@ agent gets one tool: news_search. Calls go through octen_client.news_search(),
 which routes them via the game server so they count for scoring.
 
 Change anything here: parameters, how results are trimmed, extra tools
-(other Octen APIs are allowed; other search tools and web browsing are not).
+(other Octen search APIs via octen_client.search(), sharing the 2-call budget; Extract
+and Embedding are fine; other search tools and web browsing are not).
 API reference: https://docs.octen.ai/capabilities/news-search
 """
 
