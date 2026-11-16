@@ -5,6 +5,7 @@
   uv run play.py ask "some clue"     run the agent on one clue
   uv run play.py eval                score the agent on every practice clue, the way the game does
   uv run play.py eval --compare      ...and show what changed since your last eval
+  uv run play.py ui                  the same eval as a live dashboard in your browser
   uv run play.py play                join the Scoop clock; then hands off the keyboard
 
 The agent is Codex (`codex exec`) with one tool, Octen News Search (news_search_mcp.py),
@@ -103,6 +104,7 @@ class Card:
     seconds: float = 0
     searches: list[str] = field(default_factory=list)  # successful News Search calls
     refused: int = 0  # calls refused by the search budget
+    search_times: list[dict] = field(default_factory=list)  # [{"t": secs since start, "ok": bool}]
     error: str = ""
 
 
@@ -170,6 +172,7 @@ def run_agent(clue: str, timeout: float = 40, verbose: bool = False) -> Card:
         with open(run_log) as f:
             calls = [json.loads(line) for line in f if line.strip()]
         card.searches = [c["query"] for c in calls if c.get("status") == 200 and not c.get("code")]
+        card.search_times = [{"t": round(c["t"] - started, 1), "ok": c.get("status") == 200 and not c.get("code"), "q": c["query"][:80]} for c in calls]
         card.refused = sum(c.get("status") == 429 for c in calls)
     if os.path.exists(out_file):
         try:
@@ -364,16 +367,19 @@ def cmd_eval(args) -> None:
     print(f"Running {len(clues)} clues, {args.parallel} at a time (times run a little slower in parallel)...\n")
     started = time.time()
     rows: dict[str, dict] = {}
+    progress = Progress(clues, args.parallel)
 
     def one(c: dict) -> dict:
+        progress.update(c["id"], status="running", started=time.time())
         card = run_agent(c["text"], timeout=args.timeout, verbose=args.verbose)
+        progress.update(c["id"], status="judging", secs=round(card.seconds, 1), url=card.url, search_times=card.search_times)
         j = judge_card(c, card)
         pts = game_points(j["verdict"], j["first"], card.seconds, bool(card.searches), c.get("house"), bool(c.get("fake")))
         return {
             "id": c["id"], "clue": c["text"], "verdict": j["verdict"], "first": j["first"], "points": pts,
             "secs": round(card.seconds, 1), "searches": card.searches, "url": card.url, "summary": card.summary,
             "reason": j["reason"], "error": card.error, "house": c.get("house"), "story": (c.get("key") or {}).get("story"),
-            "refused": card.refused, "fake": bool(c.get("fake")),
+            "refused": card.refused, "fake": bool(c.get("fake")), "search_times": card.search_times,
         }
 
     with ThreadPoolExecutor(max(1, args.parallel)) as ex:
@@ -381,6 +387,7 @@ def cmd_eval(args) -> None:
         for f in as_completed(futures):
             r = f.result()
             rows[r["id"]] = r
+            progress.update(r["id"], status="done", **r)
             mark = {"right": "RIGHT", "wrong": "WRONG", "blank": "blank", "unsure": "unsure"}[r["verdict"]]
             print(f"  [{r['id']}] {mark:<6} {r['secs']:>5.1f}s  {len(r['searches'])} searches  {r['url'][:70] if r['url'] else ''}")
     ordered = [rows[c["id"]] for c in clues]
@@ -390,12 +397,60 @@ def cmd_eval(args) -> None:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = RUNS_DIR / f"eval-{stamp}.json"
     previous = sorted(RUNS_DIR.glob("eval-*.json"))
-    out.write_text(json.dumps({"at": stamp, "secs": round(time.time() - started), "rows": ordered}, indent=2, ensure_ascii=False))
+    out.write_text(json.dumps({"at": stamp, "secs": round(time.time() - started), "summary": summarize(ordered), "rows": ordered}, indent=2, ensure_ascii=False))
+    progress.finish(out.name)
     print(f"\nSaved {out.relative_to(KIT_DIR)}")
     if args.compare and previous:
         compare_runs(json.loads(previous[-1].read_text())["rows"], ordered, previous[-1].name)
     if args.record_house:
         record_house(args.file, ordered)
+
+
+class Progress:
+    """Writes runs/current.json while an eval runs, for `play.py ui`."""
+
+    def __init__(self, clues: list[dict], parallel: int):
+        RUNS_DIR.mkdir(exist_ok=True)
+        self.lock = threading.Lock()
+        self.path = RUNS_DIR / "current.json"
+        self.state = {
+            "status": "running", "started": time.time(), "parallel": parallel, "saved_as": None,
+            "rows": [{"id": c["id"], "clue": c["text"], "status": "queued", "house": c.get("house"), "fake": bool(c.get("fake"))} for c in clues],
+        }
+        self._write()
+
+    def update(self, cid: str, **fields) -> None:
+        with self.lock:
+            for row in self.state["rows"]:
+                if row["id"] == cid:
+                    row.update(fields)
+            self._write()
+
+    def finish(self, saved_as: str) -> None:
+        with self.lock:
+            self.state.update(status="done", saved_as=saved_as, finished=time.time())
+            self._write()
+
+    def _write(self) -> None:
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.state, ensure_ascii=False))
+        tmp.replace(self.path)
+
+
+def summarize(rows: list[dict]) -> dict:
+    n = len(rows)
+    known = [r for r in rows if r.get("house") is not None]
+    missed = [r for r in known if not r["house"].get("right")]
+    secs = sorted(r["secs"] for r in rows) or [0]
+    return {
+        "n": n,
+        "right": sum(r["verdict"] == "right" for r in rows),
+        "points": sum(r["points"] or 0 for r in rows),
+        "house_missed": len(missed),
+        "beat_house": sum(r["verdict"] == "right" for r in missed),
+        "median_secs": secs[len(secs) // 2],
+        "timeouts": sum("timed out" in (r.get("error") or "") for r in rows),
+    }
 
 
 def print_eval(rows: list[dict], verbose: bool = False) -> None:
@@ -463,6 +518,13 @@ def record_house(path: str | None, rows: list[dict]) -> None:
                 n += 1
     Path(path).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     print(f"Recorded house results for {n} clues in {path}. Reload clues in the console.")
+
+
+def cmd_ui(args) -> None:
+    sys.path.insert(0, str(KIT_DIR))
+    import eval_ui
+
+    eval_ui.serve(args.port, open_browser=not args.no_browser)
 
 
 def cmd_play(args) -> None:
@@ -536,6 +598,10 @@ def main() -> None:
         ev.add_argument("--all", action="store_true", help=argparse.SUPPRESS)  # with --file: game clues too
         ev.add_argument("--record-house", action="store_true", help=argparse.SUPPRESS)  # organizers
         ev.set_defaults(fn=cmd_eval)
+    u = sub.add_parser("ui", help="eval dashboard in your browser")
+    u.add_argument("--port", type=int, default=8765)
+    u.add_argument("--no-browser", action="store_true")
+    u.set_defaults(fn=cmd_ui)
     sub.add_parser("play", help="play the Scoop clock").set_defaults(fn=cmd_play)
     args = p.parse_args()
     args.fn(args)

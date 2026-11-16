@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scoop Wars Eval</title>
+<link rel="stylesheet" href="/ui/brand/tokens.css">
+<link rel="stylesheet" href="/ui/brand/brand.css">
+<style>
+  :root {
+    --panel: color-mix(in srgb, var(--surface-dark) 45%, transparent);
+    --rail: color-mix(in srgb, var(--ink-on-dark) 14%, transparent);
+    --grid: color-mix(in srgb, var(--ink-on-dark) 10%, transparent);
+    --dot: color-mix(in srgb, var(--green-fresh) 16%, transparent);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--surface-dark); }
+  html, body { margin: 0; min-height: 100vh; }
+  body { background: var(--gradient-footer) fixed; color: var(--ink-on-dark); font-family: var(--font-ui); }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none;
+    background-image: radial-gradient(var(--dot) 1px, transparent 1.4px); background-size: 14px 14px;
+    mask-image: radial-gradient(ellipse at 85% 100%, black 0%, transparent 65%); }
+  .wrap { position: relative; max-width: 1600px; margin: 0 auto; padding: 24px 32px 40px; display: grid; gap: 18px;
+    grid-template-columns: minmax(0, 1fr) 380px; grid-template-areas: "head head" "tiles tiles" "main side"; align-content: start; }
+  @media (max-width: 1000px) { .wrap { grid-template-columns: 1fr; grid-template-areas: "head" "tiles" "main" "side"; padding: 16px; } }
+
+  header { grid-area: head; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .title { font-family: var(--font-display); font-weight: 700; font-size: 40px; margin: 0; line-height: 1; color: var(--ink-on-dark); }
+  .title em { color: var(--green-fresh); }
+  .title small { font-family: var(--font-ui); font-style: normal; font-weight: 400; font-size: var(--fs-ui-md); color: var(--ink-on-dark-muted); margin-left: 12px; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .controls img { height: 26px; margin-left: 8px; }
+  select, button { font-family: var(--font-ui); font-size: var(--fs-ui-sm); border-radius: var(--r-cta); padding: 8px 14px; }
+  select { background: var(--surface-dark); color: var(--ink-on-dark); border: 1px solid var(--line-mint-dark); }
+  button.run { background: var(--green-fresh); color: var(--ink-1); border: 0; font-weight: 700; cursor: pointer; }
+  button.run:disabled { opacity: .45; cursor: default; }
+  .status { font-size: var(--fs-ui-sm); color: var(--ink-on-dark-muted); min-width: 160px; }
+
+  .panel { border: 1px solid var(--line-mint-dark); border-radius: var(--r-lg); background: var(--panel); }
+  .tiles { grid-area: tiles; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  @media (max-width: 700px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile { padding: 14px 20px; }
+  .tile .lbl { font-size: var(--fs-ui-sm); color: var(--ink-on-dark-muted); font-weight: 700; }
+  .tile .val { font-family: var(--font-display); font-style: italic; font-size: 48px; line-height: 1.1; color: var(--green-fresh); }
+  .tile .val small { font-size: 24px; color: var(--ink-on-dark-muted); }
+  .tile .sub { font-size: var(--fs-ui-xs); color: var(--ink-on-dark-muted); }
+
+  .main { grid-area: main; padding: 16px 20px; min-width: 0; }
+  .sec-title { font-size: var(--fs-ui-sm); font-weight: 700; color: var(--ink-on-dark-muted); margin: 0 0 10px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .lane { display: grid; grid-template-columns: 54px minmax(0, 1.2fr) minmax(0, 1fr) 150px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--grid); cursor: pointer; }
+  .lane:first-of-type { border-top: 0; }
+  .lane .id { font-family: var(--font-mono); font-size: var(--fs-ui-sm); color: var(--ink-on-dark-muted); }
+  .lane .clue { font-size: var(--fs-ui-sm); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .track { position: relative; height: 30px; }
+  .rail { position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--rail); border-radius: 2px; }
+  .tick { position: absolute; top: 8px; bottom: 8px; width: 1px; background: var(--grid); }
+  .house { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--ink-on-dark-muted); }
+  .mk { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--ink-on-dark); box-shadow: 0 0 0 2px var(--surface-dark); }
+  .mk.refused { background: transparent; border: 2px solid var(--ink-on-dark-muted); box-shadow: none; }
+  .flag { position: absolute; top: 2px; bottom: 2px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--ink-on-dark-muted); }
+  .flag.right { background: var(--green-fresh); }
+  .flag.wrong { background: var(--red-data); }
+  .running-bar { position: absolute; left: 0; top: calc(50% - 1px); height: 2px; background: var(--ink-on-dark); border-radius: 2px; }
+  .pill { justify-self: end; font-size: var(--fs-ui-sm); font-weight: 700; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+  .pill .ico { width: 16px; height: 16px; }
+  .pill.right { color: var(--green-fresh); }
+  .pill.wrong { color: var(--red-data); }
+  .pill.muted { color: var(--ink-on-dark-muted); font-weight: 400; }
+  .chg { font-size: var(--fs-ui-xs); font-weight: 400; color: var(--ink-on-dark-muted); margin-left: 4px; }
+  .detail { grid-column: 2 / -1; font-size: var(--fs-ui-xs); color: var(--ink-on-dark-muted); display: grid; gap: 4px; padding-bottom: 4px; }
+  .detail code { font-family: var(--font-mono); color: var(--ink-on-dark); word-break: break-all; }
+  .axis { display: grid; grid-template-columns: 54px minmax(0, 1.2fr) minmax(0, 1fr) 150px; gap: 14px; font-size: var(--fs-ui-xs); color: var(--ink-on-dark-muted); }
+  .axis .scale { position: relative; height: 14px; }
+  .axis .scale span { position: absolute; transform: translateX(-50%); }
+  .empty { color: var(--ink-on-dark-muted); padding: 24px 0; font-size: var(--fs-ui-sm); }
+
+  .side { grid-area: side; display: grid; gap: 18px; align-content: start; }
+  .history { padding: 16px 20px; position: relative; }
+  .history svg { display: block; width: 100%; height: 150px; overflow: visible; }
+  .run { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; padding: 8px 6px; border-top: 1px solid var(--grid); cursor: pointer; border-radius: var(--r-sm); }
+  .run:hover, .run.sel { background: color-mix(in srgb, var(--green-fresh) 8%, transparent); }
+  .run .when { font-size: var(--fs-ui-sm); }
+  .run .when small { display: block; font-size: var(--fs-ui-xs); color: var(--ink-on-dark-muted); }
+  .run .pts { font-family: var(--font-display); font-style: italic; font-size: 26px; color: var(--green-fresh); }
+  .run .pts.neg { color: var(--red-data); }
+  .run .d { font-size: var(--fs-ui-xs); color: var(--ink-on-dark-muted); min-width: 36px; text-align: right; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface-dark); border: 1px solid var(--line-mint-dark); border-radius: var(--r-sm); padding: 6px 10px; font-size: var(--fs-ui-xs); }
+  .legend { font-size: var(--fs-ui-xs); color: var(--ink-on-dark-muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 0; height: 12px; border-left: 2px dashed var(--ink-on-dark-muted); vertical-align: middle; margin-right: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 class="title">Scoop <em>Wars</em><small id="team">Eval</small></h1>
+    <div class="controls">
+      <span class="status" id="status"></span>
+      <label class="status" style="min-width:0">Parallel
+        <select id="parallel"><option>1</option><option>2</option><option selected>4</option><option>6</option></select></label>
+      <button class="run" id="run">Run Eval</button>
+      <img src="/ui/brand/octen-lockup-dark.svg" alt="Octen">
+    </div>
+  </header>
+
+  <section class="tiles">
+    <div class="panel tile"><div class="lbl">Right</div><div class="val" id="t-right">-</div><div class="sub" id="t-right-sub"></div></div>
+    <div class="panel tile"><div class="lbl">Estimated game points</div><div class="val" id="t-pts">-</div><div class="sub" id="t-pts-sub"></div></div>
+    <div class="panel tile"><div class="lbl">Clues the house agent missed</div><div class="val" id="t-house">-</div><div class="sub">4 points each</div></div>
+    <div class="panel tile"><div class="lbl">Median answer time</div><div class="val" id="t-time">-</div><div class="sub" id="t-time-sub"></div></div>
+  </section>
+
+  <section class="panel main">
+    <div class="sec-title"><span id="run-title">No runs yet</span>
+      <span class="legend"><span>● search</span><span>○ refused by budget</span><span><i></i>house agent's answer</span><span>Click a clue for details</span></span></div>
+    <div id="lanes"><p class="empty">Press Run Eval to score your agent on every practice clue.</p></div>
+    <div class="axis"><span></span><span></span><div class="scale" id="scale"></div><span></span></div>
+  </section>
+
+  <aside class="side">
+    <section class="panel history">
+      <div class="sec-title"><span>Estimated points per run</span></div>
+      <svg id="chart" role="img" aria-label="Estimated game points for each eval run"></svg>
+      <div class="tip" id="tip" hidden></div>
+    </section>
+    <section class="panel history">
+      <div class="sec-title"><span>Runs</span><span>vs previous</span></div>
+      <div id="runs"></div>
+    </section>
+  </aside>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ICON = {
+  check: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5l10 -10"/></svg>',
+  x: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg>',
+  clock: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 7v5l3 3"/></svg>',
+  minus: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l14 0"/></svg>',
+};
+const W = 45;
+const pos = (t) => `${Math.max(0, Math.min(100, (t / W) * 100))}%`;
+const fmt = (p) => (p === null || p === undefined ? "?" : p > 0 ? `+${p}` : `${p}`);
+let runs = [], selected = null, view = null, prevRows = {}, open = new Set(), status = null;
+
+function summarize(rows) {
+  const done = rows.filter((r) => r.verdict);
+  const known = done.filter((r) => r.house);
+  const missed = known.filter((r) => !r.house.right);
+  const secs = done.map((r) => r.secs).sort((a, b) => a - b);
+  return {
+    n: rows.length, done: done.length,
+    right: done.filter((r) => r.verdict === "right").length,
+    points: done.reduce((a, r) => a + (r.points || 0), 0),
+    house_missed: missed.length, beat_house: missed.filter((r) => r.verdict === "right").length,
+    median_secs: secs.length ? secs[Math.floor(secs.length / 2)] : null,
+    timeouts: done.filter((r) => (r.error || "").includes("timed out")).length,
+  };
+}
+
+function pill(r) {
+  if (r.status === "queued") return `<span class="pill muted">${ICON.minus}Queued</span>`;
+  if (r.status === "running") return `<span class="pill muted">${ICON.clock}Running</span>`;
+  if (r.status === "judging") return `<span class="pill muted">${ICON.clock}Judging</span>`;
+  const p = fmt(r.points);
+  if (r.verdict === "right") return `<span class="pill right">${ICON.check}${r.fake ? "Blank" : "Right"} ${p}${r.first ? " · first" : ""}</span>`;
+  if (r.verdict === "wrong") return `<span class="pill wrong">${ICON.x}Wrong ${p}</span>`;
+  if (r.verdict === "unsure") return `<span class="pill muted">${ICON.clock}Judge unsure</span>`;
+  return `<span class="pill muted">${ICON.minus}Blank ${p}</span>`;
+}
+
+function renderLanes(rows, live) {
+  const now = Date.now() / 1000;
+  $("lanes").innerHTML = rows.map((r) => {
+    const verdictClass = r.verdict === "right" ? "right" : r.verdict === "wrong" ? "wrong" : "";
+    const ticks = [15, 30].map((t) => `<span class="tick" style="left:${pos(t)}"></span>`).join("");
+    const house = r.house && r.house.right ? `<span class="house" style="left:${pos(r.house.secs)}" title="House agent answered in ${r.house.secs}s"></span>` : "";
+    const marks = (r.search_times || []).map((s) => `<span class="mk ${s.ok ? "" : "refused"}" style="left:${pos(s.t)}" title="${esc(s.q)}"></span>`).join("");
+    const running = r.status === "running" && r.started ? `<span class="running-bar" style="width:${pos(now - r.started)}"></span>` : "";
+    const flag = r.secs !== undefined && r.status !== "running" ? `<span class="flag ${verdictClass}" style="left:${pos(r.secs)}"></span>` : "";
+    const before = prevRows[r.id];
+    let chg = "";
+    if (!live && before && r.points !== undefined && before.points !== r.points) chg = `<span class="chg">was ${fmt(before.points)}</span>`;
+    const houseTxt = r.house ? (r.house.right ? `House agent: right in ${r.house.secs}s` : "House agent: missed (worth 4)") : "House agent: no result recorded";
+    const detail = open.has(r.id) && r.verdict ? `<div class="detail">
+        <div>${houseTxt}${r.fake ? " · fake clue" : ""}</div>
+        <div>Link: <code>${esc(r.url || "blank")}</code></div>
+        ${r.summary ? `<div>Summary: ${esc(r.summary)}</div>` : ""}
+        <div>Judge: ${esc(r.reason || "")}</div>
+        ${(r.search_times || []).map((s) => `<div>${s.t}s ${s.ok ? "searched" : "refused"} <code>${esc(s.q)}</code></div>`).join("")}
+        ${r.error ? `<div>Error: ${esc(r.error)}</div>` : ""}
+      </div>` : "";
+    return `<div class="lane" data-id="${esc(r.id)}">
+      <span class="id">${esc(r.id)}</span>
+      <span class="clue" title="${esc(r.clue)}">${esc(r.clue)}</span>
+      <div class="track"><span class="rail"></span>${ticks}${house}${running}${marks}${flag}</div>
+      <span>${pill(r)}${chg}</span>
+      ${detail}
+    </div>`;
+  }).join("") || `<p class="empty">Press Run Eval to score your agent on every practice clue.</p>`;
+  $("scale").innerHTML = [0, 15, 30, 45].map((t) => `<span style="left:${pos(t)}">${t}s</span>`).join("");
+  document.querySelectorAll(".lane").forEach((el) => el.onclick = () => {
+    const id = el.dataset.id; open.has(id) ? open.delete(id) : open.add(id); render();
+  });
+}
+
+function renderTiles(s) {
+  $("t-right").innerHTML = s.done ? `${s.right}<small>/${s.n}</small>` : "-";
+  $("t-right-sub").textContent = s.done < s.n ? `${s.done} of ${s.n} finished` : "";
+  $("t-pts").textContent = s.done ? fmt(s.points) : "-";
+  $("t-pts-sub").textContent = "Scored the way the game scores";
+  $("t-house").innerHTML = s.house_missed ? `${s.beat_house}<small>/${s.house_missed}</small>` : "-";
+  $("t-time").innerHTML = s.median_secs !== null && s.median_secs !== undefined ? `${Math.round(s.median_secs)}<small>s</small>` : "-";
+  $("t-time-sub").textContent = s.timeouts ? `${s.timeouts} timed out at 41s` : "The game stops your agent at 41s";
+}
+
+function renderRuns() {
+  $("runs").innerHTML = runs.map((r, i) => {
+    const prev = runs[i + 1];
+    const d = prev ? r.points - prev.points : null;
+    const when = r.at ? `${r.at.slice(9, 11)}:${r.at.slice(11, 13)}:${r.at.slice(13, 15)}` : r.name;
+    return `<div class="run ${selected === r.name ? "sel" : ""}" data-name="${esc(r.name)}">
+      <span class="when">${when}<small>${r.right}/${r.n} right${r.median_secs ? ` · median ${Math.round(r.median_secs)}s` : ""}</small></span>
+      <span class="d">${d === null ? "" : fmt(d)}</span>
+      <span class="pts ${r.points < 0 ? "neg" : ""}">${fmt(r.points)}</span></div>`;
+  }).join("") || `<p class="empty">No runs yet.</p>`;
+  document.querySelectorAll(".run").forEach((el) => el.onclick = () => selectRun(el.dataset.name));
+  // chart: points per run, oldest to newest; single series, so no legend
+  const svg = $("chart"), Wd = Math.max(260, svg.getBoundingClientRect().width), H = 150, m = { l: 30, r: 12, t: 10, b: 20 };
+  const data = [...runs].reverse();
+  if (!data.length) { svg.innerHTML = ""; return; }
+  const vals = data.map((r) => r.points), lo = Math.min(0, ...vals), hi = Math.max(4, ...vals);
+  const x = (i) => m.l + (data.length === 1 ? (Wd - m.l - m.r) / 2 : (i / (data.length - 1)) * (Wd - m.l - m.r));
+  const y = (v) => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+  let g = `<line x1="${m.l}" x2="${Wd - m.r}" y1="${y(0)}" y2="${y(0)}" stroke="var(--grid)"/>`;
+  g += `<text x="${m.l - 6}" y="${y(hi) + 4}" text-anchor="end" font-size="11" fill="var(--ink-on-dark-muted)">${hi}</text><text x="${m.l - 6}" y="${y(0) + 4}" text-anchor="end" font-size="11" fill="var(--ink-on-dark-muted)">0</text>`;
+  g += `<path d="${data.map((r, i) => `${i ? "L" : "M"}${x(i)},${y(r.points)}`).join("")}" fill="none" stroke="var(--green-fresh)" stroke-width="2" stroke-linejoin="round"/>`;
+  data.forEach((r, i) => { g += `<circle cx="${x(i)}" cy="${y(r.points)}" r="${r.name === selected ? 6 : 4.5}" fill="var(--green-fresh)" stroke="var(--surface-dark)" stroke-width="2" data-i="${i}"/>`; });
+  g += `<text x="${x(data.length - 1)}" y="${H - 4}" text-anchor="end" font-size="11" fill="var(--ink-on-dark-muted)">latest</text>`;
+  svg.setAttribute("viewBox", `0 0 ${Wd} ${H}`); svg.innerHTML = g;
+  svg.onmousemove = (ev) => {
+    const rect = svg.getBoundingClientRect(), px = ((ev.clientX - rect.left) / rect.width) * Wd;
+    let best = 0; data.forEach((_, i) => { if (Math.abs(x(i) - px) < Math.abs(x(best) - px)) best = i; });
+    const r = data[best], tip = $("tip");
+    tip.innerHTML = `<b>${fmt(r.points)}</b> points · ${r.right}/${r.n} right`; tip.hidden = false;
+    tip.style.left = `${Math.min(rect.width - 140, (x(best) / Wd) * rect.width + 20)}px`; tip.style.top = `${(y(r.points) / H) * 150 + 20}px`;
+  };
+  svg.onmouseleave = () => { $("tip").hidden = true; };
+  svg.onclick = () => { if (!$("tip").hidden) { /* clicking a point selects that run */ } };
+}
+
+async function selectRun(name) {
+  selected = name;
+  const r = await fetch(`/api/run?name=${encodeURIComponent(name)}`).then((x) => x.json());
+  const i = runs.findIndex((x) => x.name === name);
+  prevRows = {};
+  if (runs[i + 1]) {
+    const p = await fetch(`/api/run?name=${encodeURIComponent(runs[i + 1].name)}`).then((x) => x.json());
+    for (const row of p.rows || []) prevRows[row.id] = row;
+  }
+  view = { live: false, rows: (r.rows || []).map((x) => ({ ...x, status: "done" })), title: `Run ${name.slice(5, -5)}${runs[i + 1] ? " · changes vs the run before" : ""}` };
+  render(); renderRuns();
+}
+
+function render() {
+  if (!view) return;
+  $("run-title").textContent = view.title;
+  renderLanes(view.rows, view.live);
+  renderTiles(summarize(view.rows));
+}
+
+async function poll() {
+  try {
+    const s = await fetch("/api/status", { cache: "no-store" }).then((x) => x.json());
+    $("team").textContent = s.team ? `Eval · ${s.team}` : "Eval";
+    const wasRunning = status && status.running;
+    status = s;
+    $("run").disabled = s.running;
+    $("status").textContent = s.running ? `Running ${s.current ? s.current.rows.filter((r) => r.status === "done").length + " of " + s.current.rows.length : ""}` : (s.log ? "Last run failed: see runs/ui-eval.log" : "");
+    if (s.running && s.current) {
+      selected = null; prevRows = {};
+      view = { live: true, rows: s.current.rows, title: "Live run" };
+      render();
+    }
+    if ((wasRunning && !s.running) || !runs.length) {
+      runs = await fetch("/api/runs", { cache: "no-store" }).then((x) => x.json());
+      renderRuns();
+      if (runs.length && (!view || (wasRunning && !s.running))) selectRun(runs[0].name);
+    }
+  } catch (e) { $("status").textContent = "Dashboard server stopped"; }
+}
+
+$("run").onclick = async () => {
+  $("run").disabled = true;
+  const r = await fetch("/api/start", { method: "POST", body: JSON.stringify({ parallel: +$("parallel").value }) });
+  if (!r.ok) { $("status").textContent = (await r.json()).error; $("run").disabled = false; }
+  poll();
+};
+poll();
+setInterval(poll, 1000);
+setInterval(() => { if (view && view.live) renderLanes(view.rows, true); }, 250);
+window.addEventListener("resize", renderRuns);
+</script>
+</body>
+</html>

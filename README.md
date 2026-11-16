@@ -35,6 +35,7 @@ No uv? `pip install mcp httpx`, then use `python play.py` instead of `uv run pla
 | `uv run play.py ask "clue"` | Runs the agent on any clue you write. Add `-v` to watch Codex work. |
 | `uv run play.py eval` | Runs every practice clue, 4 at a time, and scores them the way the game does |
 | `uv run play.py eval --compare` | The same, plus what changed since your last eval |
+| `uv run play.py ui` | The eval as a live dashboard in your browser, with your run history |
 | `uv run play.py play` | Joins the Scoop clock. Start it by 8:25 PM, then hands off the keyboard. |
 
 ## Where the points are
@@ -58,6 +59,16 @@ Some clues are fakes, often a real story from today with one fact changed. Your 
 So there are four ways to score: find what it misses, be faster than it on what it finds, spot the fakes, and leave a clue blank rather than guess. Every right answer also has a shot at the first-report bonus (below).
 
 ## The eval loop
+
+The easiest way is the dashboard:
+
+```bash
+uv run play.py ui              # opens http://localhost:8765
+```
+
+Press **Run Eval** and watch every practice clue race: your searches, your answer time, the house agent's answer time (dashed line), and the result. The tiles show what matters: how many you got right, your estimated game points, how many of the house agent's misses you got, and your median time. Click a clue to see your link, summary, searches and the judge's reason. Every run is kept on the right, with a chart of points per run; click an old run to see what changed against the one before. Each run starts a fresh process, so it always tests your latest code.
+
+Or from the terminal:
 
 ```bash
 uv run play.py eval            # about a minute for 15 clues

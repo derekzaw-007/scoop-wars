@@ -1,0 +1,164 @@
+/* ============================================================
+   Octen Design System — stylesheet (components/bundle.css)
+   Loaded after tokens.css. Colour, type, spacing, radius, shadow,
+   font-size, line-height and letter-spacing values live in
+   tokens.json (compiled to tokens.css); this file keeps what
+   tokens cannot hold: webfonts, gradients, motion and the
+   semantic element styles.
+   ============================================================ */
+
+/* Webfonts ---------------------------------------------------- */
+/* Loaded from Google Fonts. To swap to vendored .woff2 files,
+   replace the @import line with @font-face declarations pointing
+   into ./fonts/. The CSS variables below stay the same. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=DM+Sans:ital,opsz,wght@0,9..40,400..900;1,9..40,400..900&family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Brand gradients */
+  --gradient-logo: linear-gradient(135deg, #07AA5A 0%, #9ACC53 100%);
+  --gradient-mark-glow: linear-gradient(135deg, #C7BA04 0%, #067F69 100%);
+  --gradient-hero-bg: linear-gradient(180deg, #F5FFF5 0%, #FFFCF7 100%);
+  --gradient-news-band: linear-gradient(180deg, #EFEFDE 0%, #EFEFDE 100%),
+                        linear-gradient(180deg, #A3C9B5 0%, rgba(196,187,149,0.28) 98%);
+  --gradient-footer: linear-gradient(180deg, #000000 0%, #2E3F37 100%);
+  --gradient-code-overlay: linear-gradient(180deg, rgba(33,86,62,0.7) 0%, rgba(0,0,0,0.7) 100%),
+                           linear-gradient(#0E1312, #0E1312);
+  --gradient-cta-band: linear-gradient(180deg, #95C4A7 0%, rgba(149,196,167,0.1) 98%);
+
+  /* === MOTION ============================================= */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-state: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-hover: 180ms;
+  --dur-press: 240ms;
+  --dur-reveal: 320ms;
+}
+
+/* ============================================================
+   SEMANTIC ELEMENT STYLES
+   Drop these on bare HTML to get on-brand defaults.
+   ============================================================ */
+
+html, body {
+  background: var(--surface-canvas);
+  color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-md);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-display-xl);
+  line-height: 62px;
+  letter-spacing: var(--letter-display);
+  color: var(--ink-1);
+  margin: 0;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-display-md);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--letter-display);
+  color: var(--ink-1);
+  margin: 0;
+}
+
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-display-xs);
+  line-height: 43px;
+  color: var(--ink-1);
+  margin: 0;
+}
+
+h4 {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: var(--fs-ui-lg);
+  line-height: var(--lh-snug);
+  color: var(--ink-2);
+  margin: 0;
+}
+
+/* Italic emphasis word inside a headline (the brand move) */
+.h-em {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-style: italic;
+  color: var(--ink-1);
+}
+.h-em--gold { color: var(--gold); }
+.h-em--green { color: var(--green-deep); }
+.h-em--green-fresh { color: var(--green-fresh); }
+
+p {
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-md);
+  line-height: var(--lh-body);
+  color: var(--ink-body);
+  margin: 0;
+}
+
+.body-long { color: var(--ink-muted); }
+
+.body-muted { color: var(--ink-body); opacity: 0.6; }
+
+small {
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-sm);
+  line-height: var(--lh-body);
+  color: var(--ink-muted);
+}
+
+/* Type-style classes (.h-hero, .h-section, .h-sub, .body, .body-long,
+   .caption, .label, .mono, .stat, .stat-unit) get their font from
+   tokens.css; only their colour and spacing live here. */
+.h-hero, .h-section, .h-sub { color: var(--ink-1); margin: 0; }
+.body { color: var(--ink-body); margin: 0; }
+.caption { color: var(--ink-muted); }
+.mono { color: #3B3B3B; }
+
+.label {
+  color: var(--ink-muted);
+  text-transform: none;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-md);
+  line-height: var(--lh-body);
+  color: #3B3B3B;
+}
+
+a {
+  color: var(--green-deep);
+  text-decoration: none;
+  transition: color var(--dur-hover) var(--ease-state);
+}
+a:hover { color: var(--green-shade); }
+
+/* Stat number (italic Fraunces, oversize) */
+.stat, .stat-unit { color: var(--green-fresh); }
+
+/* Pill / tag */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 30px;
+  padding: 0 var(--sp-6);
+  border: 1px solid var(--line-3);
+  border-radius: var(--r-pill);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-sm);
+  color: var(--ink-1);
+  background: transparent;
+}
+.tag--on-dark { border-color: rgba(255,255,255,0.47); color: var(--ink-on-dark); }
+.tag--green { border-color: var(--green-mint); color: var(--green-deep); background: rgba(196,230,211,0.4); }
