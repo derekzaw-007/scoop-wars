@@ -24,6 +24,11 @@ except ImportError:  # mcp 1.x
 from octen_client import news_search as octen_news_search  # noqa: E402
 
 mcp = MCPServer("octen")
+# The MCP library turns on INFO logging, which makes httpx print every request
+# ("HTTP Request: POST ...") into play.py's output. Keep it quiet.
+import logging  # noqa: E402
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def _article(a: dict) -> dict:
