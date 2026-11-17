@@ -17,7 +17,7 @@ Set me up for Scoop Wars: follow "Tonight's checklist" in https://github.com/der
 - [ ] **Create an Octen API key** on the [Octen API Platform](https://octen.ai/platform), with the account that redeemed the Octen credits.
 - [ ] **Install uv, Node.js and Codex,** then log in to Codex with ChatGPT Pro.
   ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
+  curl -LsSf https://astral.sh/uv/install.sh | sh   # Windows (PowerShell): powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
   npm install -g @openai/codex
   codex login
   ```
