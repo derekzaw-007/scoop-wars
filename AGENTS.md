@@ -1,10 +1,10 @@
 # Scoop Wars starter kit: notes for coding agents
 
-This repo is an agent that finds fresh news stories from vague clues. You are helping a team improve it during a 70-minute hackathon. The agent runs inside `codex exec`; this file is not part of its prompt (play.py runs it in an empty temp directory).
+This repo is an agent that finds fresh news stories from vague clues. You are helping a team improve it during an hour-long build. The agent runs inside `codex exec`; this file is not part of its prompt (play.py runs it in an empty temp directory).
 
 ## Setting up a laptop
 
-If asked to set someone up, work through "Tonight's checklist" in `README.md`. Run the terminal steps yourself (install uv and Codex, clone, `cp .env.example .env`, `uv run play.py doctor`). Ask the person for what only they can do: joining the Wi-Fi, claiming credits, `codex login`, their `OCTEN_API_KEY`, and the `SCOOP_SERVER` address on the big screen. Never print, paste or commit the contents of `.env`.
+If asked to set someone up, work through "Tonight's checklist" in `README.md`. Run the terminal steps yourself (install uv and Codex, clone, `cp .env.example .env`, `uv run play.py doctor` once the team has joined). Ask the person for what only they can do: joining the Wi-Fi, claiming credits on the event page, `codex login`, their `OCTEN_API_KEY`, and the `SCOOP_SERVER` line from the event page. Never print, paste or commit the contents of `.env`.
 
 ## Layout
 
@@ -18,7 +18,7 @@ If asked to set someone up, work through "Tonight's checklist" in `README.md`. R
 ## Hard constraints
 
 - 45 seconds per clue, including Codex startup. `play.py` kills the run at 41 seconds.
-- Every search must go through `octen_client` (the game server proxy logs it). Budget: 2 search calls per clue, all Octen search APIs combined; the third returns `{"code": 429}`. Calls are made in parallel at your own risk: both count. A card scores 0 if the team's key made no News Search call during the clue. Do not use Broad Search, Answer, Search Agent, Deep Research or Auto Search (they run many searches per call), and do not add other web search tools, browsing, or scraping. Octen Extract and Embedding are allowed and don't use the budget.
+- Every search must go through `octen_client` (the game server proxy logs it). Don't wire in Octen's own MCP server, CLI or SDK: they skip the game server, so their calls don't count. Budget: 2 search calls per clue, all Octen search APIs combined; the third returns `{"code": 429}`. Calls are made in parallel at your own risk: both count. A card scores 0 if the team's key made no News Search call during the clue. Do not use Broad Search, Answer, Search Agent, Deep Research or Auto Search (they run many searches per call), and do not add other web search tools, browsing, or scraping. Octen Extract and Embedding are allowed and don't use the budget.
 - Some clues are local: stories covered so far only in Chinese or Indonesian outlets. For those, only an article in that language counts (English coverage is scored wrong). News Search accepts `language: ["zh"]` or `["id"]` and queries in that language.
 - The card summary must be one English sentence, whatever language the article is in.
 - Keep `card.schema.json` and the `/api/cards` submission format unchanged.
@@ -29,7 +29,7 @@ If asked to set someone up, work through "Tonight's checklist" in `README.md`. R
 
 ## Scoring
 
-Right on a clue the house agent missed: 4. Right and faster than the house agent: 2, slower: 1. Wrong: -2. Blank: 0. Some clues are fakes (often a real story with one fact changed): blank scores +2, any link -2. So speed matters, every detail of the clue must be checked against the article, and answering blank beats a likely-wrong guess.
+Right on a clue the house agent missed: 4. Right and faster than the house agent: 2, slower: 1. Wrong: -2. Blank: 0. The earliest article in an answer key of 3+ articles: +2 more. A clue nobody gets right (house included) scores 0 for everyone. Some clues are fakes (often a real story with one fact changed): blank scores +2, any link -2. So speed matters, every detail of the clue must be checked against the article, and answering blank beats a likely-wrong guess.
 
 ## Testing
 
