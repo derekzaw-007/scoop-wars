@@ -222,7 +222,7 @@ function detailHtml(r, houseTxt) {
   if (r.url && !inKey && !r.fake && r.reason) rows.push(["Judge", `<p class="note ${r.verdict}">${esc(r.reason)}</p>`]);
   rows.push(["House agent", `<p>${houseTxt.replace(/^House agent: /, "")}</p>`]);
   const ss = r.search_times || [];
-  if (ss.length) rows.push(["Searches", `<ol class="srch">${ss.map((x) => `<li><span class="t">${x.t}s</span><code>${esc(x.q)}</code>${x.ok ? "" : '<span class="tag">refused: over budget</span>'}</li>`).join("")}</ol>`]);
+  if (ss.length) rows.push(["Searches", `<ol class="srch">${ss.map((x) => `<li><span class="t">${x.t}s</span><code>${esc(x.q)}</code>${x.ok ? "" : x.refused || x.refused === undefined ? '<span class="tag">refused: over budget</span>' : '<span class="tag">failed</span>'}</li>`).join("")}</ol>`]);
   return `<dl class="detail">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
 }
 

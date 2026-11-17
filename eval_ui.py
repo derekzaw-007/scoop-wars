@@ -6,6 +6,7 @@ runs/eval-*.json. Standard library only.
 """
 
 import json
+import os
 import mimetypes
 import subprocess
 import sys
@@ -26,14 +27,14 @@ _log_path = RUNS_DIR / "ui-eval.log"
 
 def _team() -> dict:
     path = KIT_DIR / ".scoop.json"  # name only; with SCOOP_TOKEN in .env the dashboard just shows no name
-    return json.loads(path.read_text()) if path.exists() else {}
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
 def _runs() -> list[dict]:
     out = []
     for f in sorted(RUNS_DIR.glob("eval-*.json"), reverse=True):
         try:
-            data = json.loads(f.read_text())
+            data = json.loads(f.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
         summary = data.get("summary")
@@ -74,8 +75,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         if url.path == "/api/status":
             current = RUNS_DIR / "current.json"
-            cur = json.loads(current.read_text()) if current.exists() else None
-            log_tail = _log_path.read_text()[-600:] if _log_path.exists() and not _running() and cur is None else ""
+            cur = json.loads(current.read_text(encoding="utf-8")) if current.exists() else None
+            log_tail = _log_path.read_text(encoding="utf-8")[-600:] if _log_path.exists() and not _running() and cur is None else ""
             return self._json({"running": _running(), "current": cur, "team": _team().get("name"), "log": log_tail})
         if url.path == "/api/runs":
             return self._json(_runs())
@@ -102,8 +103,8 @@ class Handler(BaseHTTPRequestHandler):
                 cmd += ["--only", str(body["only"])]
             RUNS_DIR.mkdir(exist_ok=True)
             (RUNS_DIR / "current.json").unlink(missing_ok=True)
-            log = open(_log_path, "w")
-            _proc = subprocess.Popen(cmd, cwd=KIT_DIR, stdout=log, stderr=subprocess.STDOUT)
+            log = open(_log_path, "w", encoding="utf-8")
+            _proc = subprocess.Popen(cmd, cwd=KIT_DIR, stdout=log, stderr=subprocess.STDOUT, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
         return self._json({"ok": True})
 
 

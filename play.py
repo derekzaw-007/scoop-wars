@@ -48,7 +48,7 @@ def load_env() -> None:
     path = KIT_DIR / ".env"
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
@@ -56,6 +56,10 @@ def load_env() -> None:
 
 
 load_env()
+# Windows consoles default to cp1252: never crash printing a Chinese or Indonesian query or headline
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(errors="replace")
 CODEX = os.environ.get("CODEX_BIN") or shutil.which("codex") or "codex"
 CODEX_MODEL = os.environ.get("CODEX_MODEL", "")  # empty = Codex default
 CODEX_REASONING = os.environ.get("CODEX_REASONING", "low")  # low | medium | high (check what your model supports)
@@ -65,7 +69,7 @@ def team() -> dict:
     """Your team's token: SCOOP_TOKEN in .env (from the event page), or .scoop.json from `play.py join`."""
     if os.environ.get("SCOOP_TOKEN"):
         return {"token": os.environ["SCOOP_TOKEN"].strip()}
-    return json.loads(TEAM_FILE.read_text()) if TEAM_FILE.exists() else {}
+    return json.loads(TEAM_FILE.read_text(encoding="utf-8")) if TEAM_FILE.exists() else {}
 
 
 def team_name() -> str:
@@ -156,13 +160,13 @@ def codex_command(workdir: str, out_file: str, run_log: str) -> list[str]:
     return cmd
 
 
-def run_agent(clue: str, timeout: float = 40, verbose: bool = False) -> Card:
+def run_agent(clue: str, timeout: float = GAME_TIMEOUT, verbose: bool = False) -> Card:
     """Run Codex on one clue and return its card. Never raises."""
     started = time.time()
     workdir = tempfile.mkdtemp(prefix="scoop-")  # empty dir: no AGENTS.md, nothing to read
     out_file = os.path.join(workdir, "card.json")
     run_log = os.path.join(workdir, "searches.jsonl")
-    prompt = PROMPT_FILE.read_text().strip() + f"\n\nClue: {clue}\n"
+    prompt = PROMPT_FILE.read_text(encoding="utf-8").strip() + f"\n\nClue: {clue}\n"
     card = Card()
     try:
         proc = subprocess.Popen(
@@ -171,6 +175,8 @@ def run_agent(clue: str, timeout: float = 40, verbose: bool = False) -> Card:
             stdout=None if verbose else subprocess.DEVNULL,
             stderr=None if verbose else subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             start_new_session=True,
         )
     except FileNotFoundError:
@@ -185,14 +191,14 @@ def run_agent(clue: str, timeout: float = 40, verbose: bool = False) -> Card:
         card.error = f"timed out after {timeout:.0f}s"
     card.seconds = time.time() - started
     if os.path.exists(run_log):
-        with open(run_log) as f:
+        with open(run_log, encoding="utf-8") as f:
             calls = [json.loads(line) for line in f if line.strip()]
         card.searches = [octen_client.label(c.get("api", "news-search"), c["query"]) for c in calls if c.get("status") == 200 and not c.get("code")]
-        card.search_times = [{"t": round(c["t"] - started, 1), "ok": c.get("status") == 200 and not c.get("code"), "q": c["query"][:80]} for c in calls]
+        card.search_times = [{"t": round(c["t"] - started, 1), "ok": c.get("status") == 200 and not c.get("code"), "refused": c.get("status") == 429 or c.get("code") == 429, "q": c["query"][:80]} for c in calls]
         card.refused = sum(c.get("status") == 429 for c in calls)
     if os.path.exists(out_file):
         try:
-            data = json.loads(Path(out_file).read_text())
+            data = json.loads(Path(out_file).read_text(encoding="utf-8"))
             card.url = (data.get("url") or "").strip()
             card.summary = (data.get("summary") or "").strip()
         except (json.JSONDecodeError, AttributeError):
@@ -205,6 +211,8 @@ def kill(proc: subprocess.Popen) -> None:
     try:
         if hasattr(os, "killpg"):
             os.killpg(proc.pid, signal.SIGKILL)  # codex and its MCP server
+        elif os.name == "nt":  # Windows: kill codex.cmd and everything under it (codex, its MCP server)
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
         else:
             proc.kill()
     except (ProcessLookupError, PermissionError):
@@ -292,7 +300,7 @@ def cmd_doctor(args) -> None:
     codex = shutil.which(CODEX) or (CODEX if os.path.exists(CODEX) else None)
     line(bool(codex), "Codex CLI", codex or "not found: npm install -g @openai/codex")
     if codex:
-        r = subprocess.run([CODEX, "login", "status"], capture_output=True, text=True)
+        r = subprocess.run([CODEX, "login", "status"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         status = (r.stdout + r.stderr).strip().splitlines()
         line(r.returncode == 0, "Codex login", status[-1] if status else "run: codex login")
     try:
@@ -318,7 +326,7 @@ def cmd_doctor(args) -> None:
             me = api("GET", "/api/team", timeout=5)
             line(True, "Team", f"{me.get('name')} ({', '.join(me.get('members') or []) or 'no members listed'})")
         except ServerError as e:
-            line(False, "Team", f"{e}. Copy the SCOOP_TOKEN line from your event page into .env")
+            line(False, "Team", str(e))
     else:
         line(bool(t.get("token")), "Team", t.get("name") or "missing: copy the SCOOP_TOKEN line from your event page into .env")
     if key:
@@ -330,7 +338,9 @@ def cmd_doctor(args) -> None:
             line("error" not in res, "News Search call", res.get("error", "works" + (" (through the game server)" if t.get("token") and base else " (direct)")))
         except Exception as e:  # noqa: BLE001
             line(False, "News Search call", str(e))
-    print("\nAll good. Next: uv run play.py eval" if ok else "\nFix the [!!] lines, then run doctor again.")
+    print("\nAll good. Next: uv run play.py ui" if ok else "\nFix the [!!] lines, then run doctor again.")
+    if not ok:
+        sys.exit(1)
 
 
 def cmd_join(args) -> None:
@@ -343,7 +353,7 @@ def cmd_join(args) -> None:
         res = api("POST", "/api/join", {"name": args.name, "house": args.house}, admin=args.house)
     except ServerError as e:
         sys.exit(f"Join failed: {e}")
-    TEAM_FILE.write_text(json.dumps({"name": res["name"], "token": res["token"], "server": base}, indent=2))
+    TEAM_FILE.write_text(json.dumps({"name": res["name"], "token": res["token"], "server": base}, indent=2), encoding="utf-8")
     print(f"Joined as '{res['name']}'. Next: uv run play.py eval")
 
 
@@ -355,7 +365,7 @@ def cmd_ask(args) -> None:
 
 def load_practice(args) -> list[dict]:
     if args.file:  # organizers: a clues.json with answer keys
-        doc = json.loads(Path(args.file).read_text())
+        doc = json.loads(Path(args.file).read_text(encoding="utf-8"))
         clues = doc.get("practice", []) + (doc.get("game", []) if args.all else [])
         for i, c in enumerate(clues):
             c.setdefault("id", f"g{c.get('n', i + 1)}")
@@ -425,11 +435,11 @@ def cmd_eval(args) -> None:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = RUNS_DIR / f"eval-{stamp}.json"
     previous = sorted(RUNS_DIR.glob("eval-*.json"))
-    out.write_text(json.dumps({"at": stamp, "secs": round(time.time() - started), "summary": summarize(ordered), "rows": ordered}, indent=2, ensure_ascii=False))
+    out.write_text(json.dumps({"at": stamp, "secs": round(time.time() - started), "summary": summarize(ordered), "rows": ordered}, indent=2, ensure_ascii=False), encoding="utf-8")
     progress.finish(out.name)
     print(f"\nSaved {out.relative_to(KIT_DIR)}")
     if args.compare and previous:
-        compare_runs(json.loads(previous[-1].read_text())["rows"], ordered, previous[-1].name)
+        compare_runs(json.loads(previous[-1].read_text(encoding="utf-8"))["rows"], ordered, previous[-1].name)
     if args.record_house:
         record_house(args.file, ordered)
 
@@ -461,7 +471,7 @@ class Progress:
 
     def _write(self) -> None:
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.state, ensure_ascii=False))
+        tmp.write_text(json.dumps(self.state, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.path)
 
 
@@ -536,7 +546,7 @@ def record_house(path: str | None, rows: list[dict]) -> None:
     """Organizers: write the house agent's eval results into the clues file."""
     if not path:
         sys.exit("--record-house needs --file pointing at the server's clues.json")
-    doc = json.loads(Path(path).read_text())
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
     by_id = {r["id"]: r for r in rows}
     n = 0
     for section in ("practice", "game"):
@@ -546,7 +556,7 @@ def record_house(path: str | None, rows: list[dict]) -> None:
             if r and r["verdict"] in ("right", "wrong", "blank"):
                 c["house"] = {"right": r["verdict"] == "right" and news_searched(r["searches"]), "secs": r["secs"]}
                 n += 1
-    Path(path).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+    Path(path).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Recorded house results for {n} clues in {path}. Reload clues in the console.")
 
 
@@ -560,6 +570,12 @@ def cmd_ui(args) -> None:
 def cmd_play(args) -> None:
     if not team().get("token"):
         sys.exit("No team yet: copy the SCOOP_TOKEN line from your event page into .env")
+    try:
+        api("GET", "/api/team", timeout=10)
+    except ServerError as e:
+        if str(e).startswith("401"):
+            sys.exit(f"{e}\nFix SCOOP_TOKEN in .env, then run play again.")
+        print(f"Can't check your team yet ({e}). Carrying on: play keeps retrying the game server.")
     print(f"Playing as '{team_name()}' on {server_url()}. Hands off the keyboard once the clock starts.\n")
     attempted: set[int] = set()
     worker: threading.Thread | None = None
@@ -617,8 +633,8 @@ def main() -> None:
     a.add_argument("--timeout", type=float, default=GAME_TIMEOUT)
     a.add_argument("-v", "--verbose", action="store_true", help="show Codex's output")
     a.set_defaults(fn=cmd_ask)
-    for name in ("eval", "practice"):
-        ev = sub.add_parser(name, help="score the agent on the practice clues" if name == "eval" else argparse.SUPPRESS)
+    for name in ("eval",):
+        ev = sub.add_parser(name, aliases=["practice"], help="score the agent on the practice clues")
         ev.add_argument("--only", help="comma-separated clue ids")
         ev.add_argument("--parallel", type=int, default=4, help="clues to run at once (default 4)")
         ev.add_argument("--compare", action="store_true", help="show what changed since the last eval")

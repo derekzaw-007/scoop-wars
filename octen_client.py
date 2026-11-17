@@ -3,7 +3,7 @@
 Use news_search() for every News Search, and search(api, body) for the other Octen
 search APIs (SEARCH_APIS). Both send the call through the Scoop Wars game server when
 you've joined, and log it so `play.py eval` can count your searches. A card scores 0
-if your key made no News Search call during the clue. All search calls share one
+if your team made no News Search call during the clue. All search calls share one
 budget: SEARCH_BUDGET per clue, whichever API they use.
 
 If you replace Codex with your own agent, call this module and record the searches
@@ -50,7 +50,7 @@ def _load_env() -> dict:
     env = {}
     path = KIT_DIR / ".env"
     if path.exists():
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
@@ -65,7 +65,7 @@ def _team() -> dict:
     if token:
         return {"token": token}
     path = KIT_DIR / ".scoop.json"
-    return json.loads(path.read_text()) if path.exists() else {}
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
 _client = httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0))
@@ -107,7 +107,7 @@ def _calls_this_clue() -> int | None:
     if path:
         if not os.path.exists(path):
             return 0
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return sum(1 for line in f if line.strip() and json.loads(line).get("status") != 429)
     return None
 
@@ -165,5 +165,5 @@ def _log(api: str, query: str, status: int, data: dict, secs: float) -> None:
         captured.append(label(api, query))
     path = os.environ.get("SCOOP_RUN_LOG")
     if path:
-        with open(path, "a") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps({"t": time.time(), "api": api, "query": query, "status": status, "code": data.get("code"), "secs": round(secs, 2)}) + "\n")
