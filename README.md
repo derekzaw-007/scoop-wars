@@ -52,11 +52,13 @@ The house agent finds most plain clues in about 15 seconds. You won't beat it by
 | **Fake clue** (describes something that didn't happen): blank card | 2 |
 | **Fake clue**: any link | minus 2 |
 
+**Some clues are local.** They describe stories covered so far only in Chinese or Indonesian outlets, and for those only an article in that language counts: English coverage of the same story is wrong. The house agent doesn't know this. News Search takes a `language` filter (`["zh"]`, `["id"]`) and queries in that language.
+
 Some clues are fakes, often a real story from today with one fact changed. Your agent can't tell which, so it has to check that what it found matches every detail of the clue, and answer blank when it doesn't.
 
 **You get 2 search calls per clue**, News Search and Octen's other search APIs combined. The game server refuses the third, and `eval` plays by the same rule. Make the first query count.
 
-So there are four ways to score: find what it misses, be faster than it on what it finds, spot the fakes, and leave a clue blank rather than guess. Every right answer also has a shot at the first-report bonus (below).
+So there are five ways to score: find what it misses, answer local clues with a local-language article, be faster than it on what it finds, spot the fakes, and leave a clue blank rather than guess. Every right answer also has a shot at the first-report bonus (below).
 
 ## The eval loop
 
@@ -131,5 +133,6 @@ def run_agent(clue: str, timeout: float = 41, verbose: bool = False) -> Card:
 
 - Search only with Octen, using your team's key: 2 search calls per clue, News Search and Octen's other search APIs combined. Broad Search, Answer, Search Agent, Deep Research and Auto Search are off limits (they run many searches per call), and so are other search tools and web browsing. Extract and Embedding are fine.
 - During the Scoop clock your agent plays alone: 20 clues, one a minute. A team that touches the keyboard gets a warning, then loses its next answer.
-- The summary on your card is always one sentence in English.
+- Local clues (stories covered only in Chinese or Indonesian outlets) only accept an article in that language.
+- The summary on your card is always one sentence in English, whatever language the article is in.
 - If the game server goes down, the host reads the clues aloud and you paste your cards into the backup form. `play.py play` prints every card so you can copy it.
