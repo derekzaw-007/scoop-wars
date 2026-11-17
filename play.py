@@ -377,7 +377,7 @@ def judge_card(clue: dict, card: Card) -> dict:
     langs = clue.get("source_language")
     in_key, first = key_check(clue.get("key"), card.url, langs)
     if in_key:
-        return {"verdict": "right", "first": first, "reason": "in the answer key"}
+        return {"verdict": "right", "first": first, "reason": "in the answer key", "in_key": True}
     sys.path.insert(0, str(KIT_DIR))
     import judge
 
@@ -406,7 +406,7 @@ def cmd_eval(args) -> None:
         return {
             "id": c["id"], "clue": c["text"], "verdict": j["verdict"], "first": j["first"], "points": pts,
             "secs": round(card.seconds, 1), "searches": card.searches, "url": card.url, "summary": card.summary,
-            "reason": j["reason"], "error": card.error, "house": c.get("house"), "story": (c.get("key") or {}).get("story"),
+            "reason": j["reason"], "error": card.error, "house": c.get("house"), "story": (c.get("key") or {}).get("story"), "key_size": len((c.get("key") or {}).get("articles") or []), "key": [{"url": k.get("url"), "title": k.get("title"), "time": k.get("time_published")} for k in ((c.get("key") or {}).get("articles") or [])[:6]], "in_key": bool(j.get("in_key")),
             "refused": card.refused, "fake": bool(c.get("fake")), "search_times": card.search_times,
         }
 
