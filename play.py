@@ -1,7 +1,7 @@
 """Scoop Wars starter kit: the house agent.
 
   uv run play.py doctor              check Codex, your keys and the game server
-  uv run play.py join "Team Name"    register your team (once)
+  uv run play.py join "Team Name"    register a team (only if the help desk asks; teams come from the event page)
   uv run play.py ask "some clue"     run the agent on one clue
   uv run play.py eval                score the agent on every practice clue, the way the game does
   uv run play.py eval --compare      ...and show what changed since your last eval
@@ -62,7 +62,20 @@ CODEX_REASONING = os.environ.get("CODEX_REASONING", "low")  # low | medium | hig
 
 
 def team() -> dict:
+    """Your team's token: SCOOP_TOKEN in .env (from the event page), or .scoop.json from `play.py join`."""
+    if os.environ.get("SCOOP_TOKEN"):
+        return {"token": os.environ["SCOOP_TOKEN"].strip()}
     return json.loads(TEAM_FILE.read_text()) if TEAM_FILE.exists() else {}
+
+
+def team_name() -> str:
+    t = team()
+    if t.get("name"):
+        return t["name"]
+    try:
+        return api("GET", "/api/team", timeout=5).get("name") or "your team"
+    except ServerError:
+        return "your team"
 
 
 def server_url() -> str:
@@ -300,7 +313,14 @@ def cmd_doctor(args) -> None:
         except ServerError as e:
             line(False, "Game server reachable", str(e))
     t = team()
-    line(bool(t.get("token")), "Team joined", t.get("name") or 'run: uv run play.py join "Team Name"')
+    if t.get("token") and base:
+        try:
+            me = api("GET", "/api/team", timeout=5)
+            line(True, "Team", f"{me.get('name')} ({', '.join(me.get('members') or []) or 'no members listed'})")
+        except ServerError as e:
+            line(False, "Team", f"{e}. Copy the SCOOP_TOKEN line from your event page into .env")
+    else:
+        line(bool(t.get("token")), "Team", t.get("name") or "missing: copy the SCOOP_TOKEN line from your event page into .env")
     if key:
         sys.path.insert(0, str(KIT_DIR))
         try:
@@ -318,7 +338,7 @@ def cmd_join(args) -> None:
     if not base:
         sys.exit("Set SCOOP_SERVER in .env first (the URL on the big screen).")
     if team().get("token") and not args.force:
-        sys.exit(f"Already joined as '{team()['name']}'. Use --force to join as a new team.")
+        sys.exit(f"Already on a team ({team_name()}). Your team comes from the event page; use --force only if the help desk asks.")
     try:
         res = api("POST", "/api/join", {"name": args.name, "house": args.house}, admin=args.house)
     except ServerError as e:
@@ -537,8 +557,8 @@ def cmd_ui(args) -> None:
 
 def cmd_play(args) -> None:
     if not team().get("token"):
-        sys.exit('Join first: uv run play.py join "Team Name"')
-    print(f"Playing as '{team()['name']}' on {server_url()}. Hands off the keyboard once the clock starts.\n")
+        sys.exit("No team yet: copy the SCOOP_TOKEN line from your event page into .env")
+    print(f"Playing as '{team_name()}' on {server_url()}. Hands off the keyboard once the clock starts.\n")
     attempted: set[int] = set()
     worker: threading.Thread | None = None
     last_msg = ""
@@ -585,7 +605,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("doctor", help="check your setup").set_defaults(fn=cmd_doctor)
-    j = sub.add_parser("join", help="register your team")
+    j = sub.add_parser("join", help="register a team (only if the help desk asks)")
     j.add_argument("name")
     j.add_argument("--force", action="store_true", help="join again as a new team")
     j.add_argument("--house", action="store_true", help=argparse.SUPPRESS)

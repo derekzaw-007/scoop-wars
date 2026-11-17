@@ -25,7 +25,7 @@ _log_path = RUNS_DIR / "ui-eval.log"
 
 
 def _team() -> dict:
-    path = KIT_DIR / ".scoop.json"
+    path = KIT_DIR / ".scoop.json"  # name only; with SCOOP_TOKEN in .env the dashboard just shows no name
     return json.loads(path.read_text()) if path.exists() else {}
 
 

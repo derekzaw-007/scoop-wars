@@ -6,7 +6,7 @@ Each clue describes a story published in the last few hours, without the names o
 
 ## Tonight's checklist
 
-Start on the **event page** (join the venue Wi-Fi, then open the address on the big screen): claim your credits there and copy your two `.env` lines. Then work down this list.
+The **event page** walks you through all of this one step at a time: join the venue Wi-Fi and open the address on the big screen. Claim your credits there first: it also shows your team (teams of 2 to 3, made by the organizers) and lets you name it. This is the same list, for you or your coding agent.
 
 Using a coding agent? Paste this in. It runs the terminal steps and asks you for the rest.
 
@@ -21,14 +21,13 @@ Set me up for Scoop Wars: follow "Tonight's checklist" in https://github.com/der
   npm install -g @openai/codex
   codex login
   ```
-- [ ] **Get the starter kit.** Teams are 2 to 3: one person forks this repo and adds the others as collaborators, and everyone clones the fork.
+- [ ] **Get the starter kit.** Your team shares one copy: one of you forks this repo and adds the others as collaborators, and everyone clones the fork. On your own, just clone it.
   ```bash
   git clone https://github.com/derekzaw-007/scoop-wars.git && cd scoop-wars   # or your team's fork
   cp .env.example .env
   ```
-- [ ] **Fill in `.env`:** copy the two lines from the event page (to-do 3) and put your key in `OCTEN_API_KEY`. `SCOOP_SERVER` is the event page's address.
-- [ ] **Join as a team.** One person runs `uv run play.py join "Team Name"` and sends the `.scoop.json` it creates to the others, who put it in their own `scoop-wars` folder. Git ignores it, like `.env`.
-- [ ] **Check your setup:** `uv run play.py doctor`. Every line should say `[ok]`.
+- [ ] **Fill in `.env`:** copy the three lines from the event page (step 6) and put your key in `OCTEN_API_KEY`. `SCOOP_SERVER` is the event page's address; `SCOOP_TOKEN` is your team's, the same for everyone on it.
+- [ ] **Check your setup:** `uv run play.py doctor`. Every line should say `[ok]`, including your team's name.
 - [ ] **Build.** Run `uv run play.py ui` and beat the house agent on the practice clues. Start with [where the points are](#where-the-points-are).
 - [ ] **By 8:25 PM, one laptop per team runs `uv run play.py play`** and leaves it running. Hands off the keyboard from 8:30.
 
@@ -39,7 +38,7 @@ No uv? `pip install mcp httpx`, then use `python play.py` instead of `uv run pla
 | Command | What it does |
 |---|---|
 | `uv run play.py doctor` | Checks Python, Codex and its login, your keys, the game server, your team and a live News Search call |
-| `uv run play.py join "Team"` | Registers your team and writes `.scoop.json`. One person per team runs it. |
+| `uv run play.py join "Team"` | Registers a new team. Only if the help desk asks: your team and its `SCOOP_TOKEN` come from the event page. |
 | `uv run play.py ask "clue"` | Runs the agent on any clue you write. Add `-v` to watch Codex work. |
 | `uv run play.py eval` | Runs every practice clue, 4 at a time, and scores them the way the game does |
 | `uv run play.py eval --compare` | The same, plus what changed since your last eval |

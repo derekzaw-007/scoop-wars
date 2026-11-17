@@ -60,6 +60,10 @@ def _load_env() -> dict:
 
 
 def _team() -> dict:
+    """SCOOP_TOKEN in .env (from the event page), or .scoop.json from `play.py join`."""
+    token = _load_env().get("SCOOP_TOKEN", "").strip()
+    if token:
+        return {"token": token}
     path = KIT_DIR / ".scoop.json"
     return json.loads(path.read_text()) if path.exists() else {}
 
