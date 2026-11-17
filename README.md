@@ -26,7 +26,7 @@ Set me up for Scoop Wars: follow "Tonight's checklist" in https://github.com/der
   git clone https://github.com/derekzaw-007/scoop-wars.git && cd scoop-wars   # or your team's fork
   cp .env.example .env
   ```
-- [ ] **Fill in `.env`:** paste the two lines from the event page and put your key in `OCTEN_API_KEY`.
+- [ ] **Fill in `.env`:** copy the two lines from the event page (to-do 3) and put your key in `OCTEN_API_KEY`. `SCOOP_SERVER` is the event page's address.
 - [ ] **Join as a team.** One person runs `uv run play.py join "Team Name"` and sends the `.scoop.json` it creates to the others, who put it in their own `scoop-wars` folder. Git ignores it, like `.env`.
 - [ ] **Check your setup:** `uv run play.py doctor`. Every line should say `[ok]`.
 - [ ] **Build.** Run `uv run play.py ui` and beat the house agent on the practice clues. Start with [where the points are](#where-the-points-are).
