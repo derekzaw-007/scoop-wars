@@ -2,6 +2,10 @@
 
 This repo is an agent that finds fresh news stories from vague clues. You are helping a team improve it during a 70-minute hackathon. The agent runs inside `codex exec`; this file is not part of its prompt (play.py runs it in an empty temp directory).
 
+## Setting up a laptop
+
+If asked to set someone up, work through "Tonight's checklist" in `README.md`. Run the terminal steps yourself (install uv and Codex, clone, `cp .env.example .env`, `uv run play.py doctor`). Ask the person for what only they can do: joining the Wi-Fi, claiming credits, `codex login`, their `OCTEN_API_KEY`, and the `SCOOP_SERVER` address on the big screen. Never print, paste or commit the contents of `.env`.
+
 ## Layout
 
 - `play.py`: CLI. `run_agent(clue, timeout) -> Card` builds the `codex exec` command (`codex_command()`), passes `prompt.md` plus the clue on stdin, and reads the final card from `--output-last-message`. `ask`, `eval` and `play` all go through `run_agent()`. It may be replaced by any agent (any model, no Codex) that returns a `Card` in time.

@@ -4,27 +4,46 @@ This is the house agent: Codex plus Octen News Search, with a plain prompt. It p
 
 Each clue describes a story published in the last few hours, without the names or words in its headline. Your agent has 45 seconds to answer with a **card**: the URL of one article that reports the story, and a one-sentence English summary.
 
-## Setup (5 minutes)
+## Tonight's checklist
 
-You need Python 3.10+, [uv](https://docs.astral.sh/uv/), Node.js and the Codex CLI.
+Work down the list. Anything that depends on the venue (the Wi-Fi, the credits page, `SCOOP_SERVER`) is on the big screen.
 
-```bash
-# 1. Codex CLI, logged in with your ChatGPT account or an OpenAI API key
-npm install -g @openai/codex
-codex login                                            # ChatGPT Pro
-# or: printenv OPENAI_API_KEY | codex login --with-api-key
+Using a coding agent? Paste this in. It runs the terminal steps and asks you for the rest.
 
-# 2. This repo
-git clone https://github.com/derekzaw-007/scoop-wars.git && cd scoop-wars
-cp .env.example .env        # add OCTEN_API_KEY and SCOOP_SERVER (on the big screen)
-
-# 3. Check, join, eval
-uv run play.py doctor
-uv run play.py join "Your Team Name"
-uv run play.py eval
+```text
+Set me up for Scoop Wars: follow "Tonight's checklist" in https://github.com/derekzaw-007/scoop-wars. Run the terminal steps yourself. Ask me for anything only I can do: Wi-Fi, credits, logins, keys.
 ```
 
+- [ ] **Join the venue Wi-Fi.** The network and password are on the big screen.
+- [ ] **Claim your credits.** Open the credits page shown on the big screen and enter the email you registered with on Luma. Redeem all three now: USD 150 OpenAI API credits, 3 months of ChatGPT Pro, USD 25 Octen credits. The two OpenAI links work once.
+- [ ] **Create an Octen API key** in your Octen account, once the Octen credits are redeemed.
+- [ ] **Install uv, Node.js and Codex,** then log in to Codex with ChatGPT Pro.
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  npm install -g @openai/codex
+  codex login
+  ```
+- [ ] **Get the starter kit.** Teams are 2 to 3: one person forks this repo and adds the others as collaborators, and everyone clones the fork.
+  ```bash
+  git clone https://github.com/derekzaw-007/scoop-wars.git && cd scoop-wars
+  cp .env.example .env
+  ```
+- [ ] **Add your keys to `.env`:** your `OCTEN_API_KEY`, and `SCOOP_SERVER` from the big screen.
+- [ ] **Check your setup:** `uv run play.py doctor`
+- [ ] **Join as a team.** One person runs `uv run play.py join "Team Name"` and sends `.scoop.json` to the others. Everyone keeps their own `.env`.
+- [ ] **Follow Octen:** the [five links below](#follow-octen).
+- [ ] **Build.** Run `uv run play.py ui` and beat the house agent on the practice clues. Start with [where the points are](#where-the-points-are).
+- [ ] **By 8:25 PM, one laptop per team runs `uv run play.py play`** and leaves it running. Hands off the keyboard from 8:30.
+
 No uv? `pip install mcp httpx`, then use `python play.py` instead of `uv run play.py`.
+
+### Follow Octen
+
+- [Join the Octen Discord](https://discord.gg/RYuPQ8sx9)
+- [Octen AI on LinkedIn](https://www.linkedin.com/company/octen-ai)
+- [@OctenAI on X](https://x.com/OctenAI)
+- [OctenAI on GitHub](https://github.com/OctenAI)
+- [Octen on Hugging Face](https://huggingface.co/Octen): follow, and star the models
 
 ## Commands
 
