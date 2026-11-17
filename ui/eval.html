@@ -165,7 +165,10 @@ function pill(r) {
   const p = fmt(r.points);
   if (r.verdict === "right") return `<span class="pill right">${ICON.check}${r.fake ? "Blank" : "Right"} ${p}${r.first ? " · first" : ""}</span>`;
   if (r.verdict === "wrong") return `<span class="pill wrong">${ICON.x}Wrong ${p}</span>`;
-  if (r.verdict === "unsure") return `<span class="pill muted">${ICON.clock}Judge unsure</span>`;
+  if (r.verdict === "unsure") {
+    const why = "Your link isn't in the answer key, and the judge couldn't confirm it reports this story. Not counted here; in the game, the game master decides." + (r.reason ? ` Judge: ${r.reason}` : "");
+    return `<span class="pill muted" title="${esc(why)}">${ICON.clock}Judge unsure · not counted</span>`;
+  }
   return `<span class="pill muted">${ICON.minus}Blank ${p}</span>`;
 }
 

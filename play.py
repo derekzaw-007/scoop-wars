@@ -512,6 +512,8 @@ def print_eval(rows: list[dict], verbose: bool = False) -> None:
     if refused:
         print(f"Hit the search budget ({os.environ.get('SCOOP_SEARCH_BUDGET', '2')} per clue): {refused} clue(s)")
     print("* first report: +2   srch+ = hit the search budget")
+    if any(r["verdict"] == "unsure" for r in rows):
+        print("unsure = link not in the answer key and the judge couldn't confirm it: not counted here; in the game, the game master decides")
 
 
 def compare_runs(before: list[dict], after: list[dict], name: str) -> None:
